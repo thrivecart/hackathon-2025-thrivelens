@@ -21,11 +21,53 @@
                   <span v-else-if="streamMsg.status === 'error'">❌</span>
                   <span v-else-if="streamMsg.type === 'final'">💬</span>
                 </div>
-                <div class="stream-content">{{ streamMsg.content }}</div>
+                <div class="stream-content">
+                  {{ streamMsg.content }}
+                  <!-- Show screenshot if present -->
+                  <div v-if="streamMsg.screenshotUrl" class="screenshot-container">
+                    <img 
+                      :src="streamMsg.screenshotUrl" 
+                      alt="Website screenshot"
+                      class="website-screenshot"
+                      @load="scrollToBottom"
+                    />
+                  </div>
+                  <!-- Show UX analysis if present -->
+                  <div v-if="streamMsg.uxAnalysis" class="ux-analysis">
+                    <div v-if="streamMsg.uxAnalysis.score" class="ux-score">
+                      <strong>UX Score: {{ streamMsg.uxAnalysis.score }}/100</strong>
+                    </div>
+                    <div v-if="streamMsg.uxAnalysis.summary" class="ux-summary">
+                      {{ streamMsg.uxAnalysis.summary }}
+                    </div>
+                    <div v-if="streamMsg.uxAnalysis.recommendations && streamMsg.uxAnalysis.recommendations.length" class="recommendations">
+                      <h4>Recommendations:</h4>
+                      <div v-for="(rec, idx) in streamMsg.uxAnalysis.recommendations" :key="idx" class="recommendation" :class="rec.priority">
+                        <div class="rec-header">
+                          <strong>{{ rec.title }}</strong>
+                          <span class="priority-badge" :class="rec.priority">{{ rec.priority }}</span>
+                        </div>
+                        <p>{{ rec.description }}</p>
+                        <div v-if="rec.impact" class="impact">💡 {{ rec.impact }}</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
             <!-- Show regular content -->
-            <div v-else>{{ m.content }}</div>
+            <div v-else>
+              {{ m.content }}
+              <!-- Show screenshot in regular message if present -->
+              <div v-if="m.screenshotUrl" class="screenshot-container">
+                <img 
+                  :src="m.screenshotUrl" 
+                  alt="Website screenshot"
+                  class="website-screenshot"
+                  @load="scrollToBottom"
+                />
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -61,12 +103,27 @@ interface StreamMessage {
   type: string
   content: string
   status?: string
+  screenshotUrl?: string
+  uxAnalysis?: {
+    score: number | null
+    summary: string
+    recommendations: Array<{
+      title: string
+      description: string
+      priority: string
+      impact: string
+    }>
+    strengths: string[]
+    weaknesses: string[]
+  }
 }
 
 interface Message {
   role: 'user' | 'assistant'
   content: string
   streamMessages?: StreamMessage[]
+  screenshotUrl?: string
+  uxAnalysis?: any
 }
 
 const prompt = ref('')
@@ -254,5 +311,168 @@ async function quickCustomers() {
 .composer button:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+/* UX Audit Styles */
+.screenshot-container {
+  margin: 16px 0;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: var(--bg-muted);
+}
+
+.website-screenshot {
+  width: 100%;
+  max-width: 600px;
+  height: auto;
+  display: block;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.website-screenshot:hover {
+  transform: scale(1.02);
+}
+
+.ux-analysis {
+  margin: 16px 0;
+  padding: 16px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.ux-score {
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  background: #f0f9ff;
+  border: 1px solid #0ea5e9;
+  border-radius: 6px;
+  color: #0c4a6e;
+  font-size: 0.95em;
+}
+
+.ux-summary {
+  margin-bottom: 16px;
+  padding: 12px;
+  background: var(--bg-muted);
+  border-radius: 6px;
+  line-height: 1.5;
+}
+
+.recommendations {
+  margin-top: 16px;
+}
+
+.recommendations h4 {
+  margin: 0 0 12px 0;
+  color: var(--text);
+  font-size: 1.1em;
+}
+
+.recommendation {
+  margin: 12px 0;
+  padding: 12px;
+  border-radius: 6px;
+  border-left: 4px solid #6b7280;
+  background: var(--bg-muted);
+}
+
+.recommendation.high {
+  border-left-color: #ef4444;
+  background: #fef2f2;
+}
+
+.recommendation.medium {
+  border-left-color: #f59e0b;
+  background: #fffbeb;
+}
+
+.recommendation.low {
+  border-left-color: #10b981;
+  background: #f0fdf4;
+}
+
+.rec-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.priority-badge {
+  font-size: 0.75em;
+  padding: 2px 8px;
+  border-radius: 12px;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.priority-badge.high {
+  background: #fecaca;
+  color: #991b1b;
+}
+
+.priority-badge.medium {
+  background: #fed7aa;
+  color: #9a3412;
+}
+
+.priority-badge.low {
+  background: #bbf7d0;
+  color: #166534;
+}
+
+.recommendation p {
+  margin: 8px 0;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.impact {
+  margin-top: 8px;
+  font-size: 0.9em;
+  font-style: italic;
+  color: var(--muted);
+}
+
+/* Dark mode adjustments */
+@media (prefers-color-scheme: dark) {
+  .ux-score {
+    background: #0c4a6e;
+    border-color: #0ea5e9;
+    color: #e0f2fe;
+  }
+  
+  .recommendation.high {
+    background: #450a0a;
+    border-left-color: #ef4444;
+  }
+  
+  .recommendation.medium {
+    background: #451a03;
+    border-left-color: #f59e0b;
+  }
+  
+  .recommendation.low {
+    background: #052e16;
+    border-left-color: #10b981;
+  }
+  
+  .priority-badge.high {
+    background: #991b1b;
+    color: #fecaca;
+  }
+  
+  .priority-badge.medium {
+    background: #9a3412;
+    color: #fed7aa;
+  }
+  
+  .priority-badge.low {
+    background: #166534;
+    color: #bbf7d0;
+  }
 }
 </style>
