@@ -41,13 +41,16 @@ export default defineEventHandler(async (event) => {
       'You help analyze business data, create coupons, and perform commerce operations.',
       '',
       'CRITICAL BEHAVIOR RULES:',
-      '- When you need to make tool calls, explain what you\'re doing FIRST',
-      '- Then make the tool calls to get the data',
-      '- Always complete all necessary tool calls before final response',
-      '- When user asks for exports/files, explain that you\'ll provide the data in text format',
+      '- NEVER say "I will", "Let me", "Now I will" - always DO all actions immediately and completely',
+      '- For single product pricing: use get_product_pricing_by_name tool',
+      '- For ALL products with prices: First call list_products, then call get_product_pricing_by_name for each product',
+      '- For customer analysis: Analyze transaction data directly - do NOT say you will calculate, just DO the calculation and show results',
+      '- Make ALL necessary tool calls in sequence, then perform complete analysis in your final response',
+      '- When you have data, analyze it immediately and provide complete insights',
+      '- Always complete all necessary tool calls AND analysis before final response',
       '',
       'Available ThriveCart tools:',
-      '- Products: list_products, get_product_pricing_by_name, list_products_with_pricing',
+      '- Products: list_products, get_product_pricing_by_name',
       '- Sales: list_transactions, Customers: get_customer_by_email',
       '- Marketing: list_affiliates, list_upsells, list_bumps, list_downsells',
       '',
@@ -75,19 +78,6 @@ export default defineEventHandler(async (event) => {
           function: {
             name: 'list_products',
             description: 'List all ThriveCart products',
-            parameters: {
-              type: 'object',
-              properties: {
-                status: { type: 'string', enum: ['live', 'test'] }
-              }
-            }
-          }
-        },
-        {
-          type: 'function',
-          function: {
-            name: 'list_products_with_pricing',
-            description: 'List all products WITH pricing automatically fetched',
             parameters: {
               type: 'object',
               properties: {
@@ -206,90 +196,22 @@ export default defineEventHandler(async (event) => {
       return { messages: [{ type: 'error', content: 'Failed to get AI response' }] }
     }
 
-    // If there are tool calls, process them with status updates
-    if (message.tool_calls && message.tool_calls.length > 0) {
-      messages.push({ 
-        type: 'progress', 
-        content: `Making ${message.tool_calls.length} data requests...`,
-        status: 'working'
-      })
-
-      const toolResults = []
-      
-      for (let i = 0; i < message.tool_calls.length; i++) {
-        const toolCall = message.tool_calls[i]
-        const { name, arguments: args } = toolCall.function
-        
-        messages.push({ 
-          type: 'progress', 
-          content: `Step ${i + 1}: Calling ${name}...`,
-          status: 'working'
-        })
-
-        try {
-          let result = await callThriveCartTool(name, JSON.parse(args))
-          
-          toolResults.push({
-            tool_call_id: toolCall.id,
-            role: 'tool' as const,
-            content: JSON.stringify(result, null, 2)
-          })
-
-          messages.push({ 
-            type: 'progress', 
-            content: `✓ ${name} completed`,
-            status: 'success'
-          })
-
-        } catch (error) {
-          messages.push({ 
-            type: 'progress', 
-            content: `✗ ${name} failed: ${error.message}`,
-            status: 'error'
-          })
-          
-          toolResults.push({
-            tool_call_id: toolCall.id,
-            role: 'tool' as const,
-            content: JSON.stringify({ error: error.message })
-          })
-        }
-      }
-
-      // Step 2: Get final response with all tool results
-      messages.push({ 
-        type: 'progress', 
-        content: 'Generating final response...',
-        status: 'thinking'
-      })
-
-      const finalResponse = await openai.chat.completions.create({
-        model: 'gpt-4.1-mini',
-        temperature: 0.2,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          ...history,
-          { role: 'user', content: query },
-          message,
-          ...toolResults
-        ]
-      })
-
-      const finalReply = finalResponse.choices[0]?.message?.content?.trim()
-      messages.push({ 
-        type: 'final', 
-        content: finalReply || 'I processed your request but couldn\'t generate a response.',
-        status: 'complete'
-      })
-
-    } else {
-      // No tool calls needed, return direct response
-      messages.push({ 
-        type: 'final', 
-        content: message.content?.trim() || 'I need more information to help you.',
-        status: 'complete'
-      })
-    }
+    // Start reasoning loop with streaming updates
+    const finalContent = await runStreamingReasoningLoop(
+      openai,
+      systemPrompt,
+      history,
+      query,
+      message,
+      messages,
+      6  // Max iterations
+    )
+    
+    messages.push({ 
+      type: 'final', 
+      content: finalContent,
+      status: 'complete'
+    })
 
     return { messages }
 
@@ -318,52 +240,6 @@ async function callThriveCartTool(toolName: string, args: any): Promise<any> {
   switch (toolName) {
     case 'list_products':
       return await getProducts({ status: args.status || 'live' })
-      
-    case 'list_products_with_pricing':
-      // Get products first
-      const productsData = await getProducts({ status: args.status || 'live' })
-      const productArray = productsData?.data || productsData?.items || productsData?.results || productsData
-      
-      if (Array.isArray(productArray)) {
-        // Limit to first 5 products to avoid timeouts
-        const limitedProducts = productArray.slice(0, 5)
-        const productsWithPricing = []
-        
-        for (const product of limitedProducts) {
-          const productId = product.id || product.product_id || product.uuid
-          const productName = product.name || product.product_name || 'Unknown'
-          
-          let pricing = null
-          try {
-            if (productId) {
-              const pricingData = await getProductPricing(productId)
-              if (pricingData?.data && Array.isArray(pricingData.data)) {
-                const priceObj = pricingData.data[0]
-                pricing = priceObj?.price || priceObj?.amount || priceObj?.cost
-              } else if (pricingData?.price || pricingData?.amount) {
-                pricing = pricingData.price || pricingData.amount
-              }
-            }
-          } catch (e) {
-            // Continue without pricing if fetch fails
-          }
-          
-          productsWithPricing.push({
-            id: productId,
-            name: productName,
-            status: product.status,
-            price: pricing,
-            formatted: pricing ? `${productName} ($${pricing})` : `${productName} (pricing unavailable)`
-          })
-        }
-        
-        return {
-          products: productsWithPricing,
-          total: productArray.length,
-          showing: limitedProducts.length
-        }
-      }
-      return { error: 'No products found' }
       
     case 'get_product_pricing_by_name':
       // Find product by name first, then get pricing
@@ -421,4 +297,189 @@ async function callThriveCartTool(toolName: string, args: any): Promise<any> {
     default:
       throw new Error(`Unknown tool: ${toolName}`)
   }
+}
+
+// Streaming reasoning loop to handle multiple tool calls iteratively
+async function runStreamingReasoningLoop(
+  openai: any,
+  systemPrompt: string,
+  history: Array<{role: string, content: string}>,
+  userQuery: string,
+  initialMessage: any,
+  messages: Array<{type: string, content: string, status?: string}>,
+  maxIterations: number = 6
+): Promise<string> {
+  const conversationHistory = [
+    { role: 'system', content: systemPrompt },
+    ...history,
+    { role: 'user', content: userQuery }
+  ]
+  
+  let currentMessage = initialMessage
+  let iteration = 0
+  
+  // Add tools definition for subsequent calls
+  const tools = [
+    {
+      type: 'function',
+      function: {
+        name: 'list_products',
+        description: 'List all ThriveCart products',
+        parameters: {
+          type: 'object',
+          properties: {
+            status: { type: 'string', enum: ['live', 'test'] }
+          }
+        }
+      }
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'get_product_pricing_by_name',
+        description: 'Get pricing for a product by name (like TC-5474)',
+        parameters: {
+          type: 'object',
+          properties: {
+            product_name: { type: 'string' }
+          },
+          required: ['product_name']
+        }
+      }
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'list_transactions',
+        description: 'List transactions for analysis',
+        parameters: {
+          type: 'object',
+          properties: {
+            transactionType: { type: 'string', enum: ['any', 'charge', 'rebill', 'refund', 'cancel'] },
+            perPage: { type: 'integer', minimum: 1, maximum: 100 },
+            page: { type: 'integer', minimum: 1 }
+          }
+        }
+      }
+    }
+  ]
+  
+  while (iteration < maxIterations) {
+    // If the current message has no tool calls, we're done
+    if (!currentMessage.tool_calls || currentMessage.tool_calls.length === 0) {
+      return currentMessage.content?.trim() || 'I processed your request but couldn\'t generate a response.'
+    }
+    
+    messages.push({ 
+      type: 'progress', 
+      content: `Making ${currentMessage.tool_calls.length} data requests...`,
+      status: 'working'
+    })
+    
+    // Add the assistant's message (with tool calls) to the conversation
+    conversationHistory.push(currentMessage)
+    
+    // Execute all tool calls in this iteration
+    const toolResults = []
+    for (let i = 0; i < currentMessage.tool_calls.length; i++) {
+      const toolCall = currentMessage.tool_calls[i]
+      const { name, arguments: args } = toolCall.function
+      
+      messages.push({ 
+        type: 'progress', 
+        content: `Step ${i + 1}: Calling ${name}...`,
+        status: 'working'
+      })
+      
+      try {
+        const result = await callThriveCartTool(name, JSON.parse(args))
+        
+        toolResults.push({
+          tool_call_id: toolCall.id,
+          role: 'tool' as const,
+          content: JSON.stringify(result, null, 2)
+        })
+        
+        messages.push({ 
+          type: 'progress', 
+          content: `✓ ${name} completed`,
+          status: 'success'
+        })
+        
+      } catch (error) {
+        messages.push({ 
+          type: 'progress', 
+          content: `✗ ${name} failed: ${error.message}`,
+          status: 'error'
+        })
+        
+        toolResults.push({
+          tool_call_id: toolCall.id,
+          role: 'tool' as const,
+          content: JSON.stringify({ error: error.message })
+        })
+      }
+    }
+    
+    // Add tool results to conversation
+    conversationHistory.push(...toolResults)
+    
+    // Get the AI's next response
+    messages.push({ 
+      type: 'progress', 
+      content: 'Analyzing results...',
+      status: 'thinking'
+    })
+    
+    try {
+      const nextResponse = await openai.chat.completions.create({
+        model: 'gpt-4.1-mini',
+        temperature: 0.2,
+        messages: conversationHistory,
+        tools: tools
+      })
+      
+      currentMessage = nextResponse.choices[0]?.message
+      if (!currentMessage) {
+        break
+      }
+      
+    } catch (error) {
+      console.error(`Error in reasoning iteration ${iteration + 1}:`, error)
+      break
+    }
+    
+    iteration++
+  }
+  
+  if (iteration >= maxIterations) {
+    messages.push({ 
+      type: 'progress', 
+      content: 'Reached reasoning limit, providing response...',
+      status: 'thinking'
+    })
+  }
+  
+  // Return the final message content
+  const finalContent = currentMessage?.content?.trim()
+  if (finalContent) {
+    return finalContent
+  }
+  
+  // Fallback: try to extract useful information from the conversation
+  const toolData = conversationHistory
+    .filter(msg => msg.role === 'tool')
+    .map(msg => {
+      try {
+        return JSON.parse(msg.content as string)
+      } catch {
+        return msg.content
+      }
+    })
+  
+  if (toolData.length > 0) {
+    return `I gathered the requested data through multiple steps. Here's what I found: ${JSON.stringify(toolData, null, 2)}`
+  }
+  
+  return 'I processed your request but encountered an issue generating the final response.'
 }
