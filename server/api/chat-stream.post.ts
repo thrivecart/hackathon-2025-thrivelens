@@ -64,7 +64,7 @@ export default defineEventHandler(async (event) => {
       messages,
       ALL_TOOL_DEFINITIONS,
       routeToolCall,
-      10  // Max iterations
+      12  // Max iterations
     )
     
     messages.push({ 
