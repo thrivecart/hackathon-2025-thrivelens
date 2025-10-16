@@ -61,72 +61,71 @@ const DEVICE_PRESETS = {
 }
 
 // UX audit prompt templates
-const UX_AUDIT_PROMPTS = {
-  checkout: `Analyze this checkout page screenshot for conversion optimization. Focus on:
-- Form usability and field reduction
-- Trust signals (security badges, testimonials)
-- Payment options and clarity
-- Error handling and validation
-- Mobile responsiveness
-- Urgency and scarcity elements
-- Exit-intent prevention
-- Progress indicators
-Provide 3-5 specific, actionable recommendations to increase conversion rates.`,
-
-  landing: `Analyze this landing page screenshot for conversion optimization. Focus on:
-- Value proposition clarity and positioning
-- Hero section effectiveness
-- Call-to-action prominence and copy
-- Social proof and testimonials
-- Page flow and information hierarchy
-- Mobile optimization
-- Loading speed indicators
-- Lead capture forms
-Provide 3-5 specific, actionable recommendations to increase conversion rates.`,
-
-  product: `Analyze this product page screenshot for conversion optimization. Focus on:
-- Product imagery and gallery effectiveness
-- Price presentation and positioning
-- Add-to-cart button prominence
-- Product descriptions and benefits
-- Reviews and ratings display
-- Trust signals and guarantees
-- Cross-sell and upsell opportunities
-- Mobile shopping experience
-Provide 3-5 specific, actionable recommendations to increase conversion rates.`,
-
-  homepage: `Analyze this homepage screenshot for conversion optimization. Focus on:
-- Value proposition communication
-- Navigation clarity
-- Hero section impact
-- Key conversion paths
-- Trust building elements
-- Content hierarchy
-- Mobile experience
-- Loading performance indicators
-Provide 3-5 specific, actionable recommendations to improve user engagement and conversions.`,
-
-  signup: `Analyze this signup page screenshot for conversion optimization. Focus on:
-- Form simplification and field reduction
-- Value proposition for signing up
-- Social login options
-- Privacy and security messaging
-- Progress indicators
-- Error handling
-- Mobile form usability
-- Incentives and benefits
-Provide 3-5 specific, actionable recommendations to increase signup conversions.`,
-
-  general: `Analyze this website screenshot for overall UX and conversion optimization. Focus on:
-- Visual hierarchy and design clarity
-- Navigation and user flow
-- Call-to-action effectiveness
-- Mobile responsiveness
-- Trust signals
-- Page loading indicators
-- Content organization
-- User engagement elements
-Provide 3-5 specific, actionable recommendations to improve user experience and conversions.`
+export function getPrompt(device:string, pageType: string, focusAreas: string[]) : string {
+  return  `
+      You are a senior UX and conversion optimization expert.
+      Analyze the provided webpage screenshot from a ${device} perspective. 
+      The page type is: ${pageType || 'general'}.
+      
+      Your goal is to evaluate the page’s **user experience, clarity, and conversion effectiveness**, 
+      especially for ThriveCart pages or similar checkout and marketing pages.
+      
+      ---
+      ### Focus Areas:
+      1. **Visual Design & Layout**
+         - Consistency, spacing, contrast, visual hierarchy, readability.
+      2. **Information Architecture**
+         - Logical grouping, scanning patterns, and clarity of key messages.
+      3. **Conversion Optimization**
+         - Call-to-action prominence, form usability, pricing clarity, trust signals, and urgency elements.
+      4. **Responsiveness & Accessibility**
+         - Mobile friendliness, tap targets, legibility, keyboard/screen reader readiness.
+      5. **Trust & Credibility**
+         - Social proof, reviews, payment confidence, policy visibility.
+      6. **Performance & Perceived Speed**
+         - Indicators of loading state, lazy loading, image optimization.
+      7. **User Flow**
+         - Ease of progression toward primary goal (purchase, signup, etc.).
+      ---
+      
+      ### Requirements:
+      - Be **objective** and **data-driven**, not purely aesthetic.
+      - Identify **strengths** and **weaknesses**.
+      - Provide **clear numeric scores (1–100)** for:
+        - Overall UX
+        - Visual design
+        - Conversion readiness
+        - Mobile optimization (if applicable)
+      - Suggest **3–7 actionable, prioritized recommendations** to improve conversions and UX.
+      
+      If two screenshots (desktop & mobile) are provided, highlight **differences** in usability and consistency.
+      
+      Return your analysis strictly in **valid JSON** format as follows:
+      
+      {
+        "overallScore": 85,
+        "categoryScores": {
+          "visualDesign": 80,
+          "conversionReadiness": 90,
+          "mobileOptimization": 75,
+          "trustAndCredibility": 88,
+          "accessibility": 70
+        },
+        "summary": "Brief executive summary (2–3 sentences).",
+        "strengths": ["List of key positives"],
+        "weaknesses": ["List of key negatives"],
+        "recommendations": [
+          {
+            "title": "Action title",
+            "description": "Concise explanation of why and how to improve it",
+            "priority": "high|medium|low",
+            "expectedImpact": "Description of potential impact on conversion rate"
+          }
+        ],
+        "device": "${device}",
+        "pageType": "${pageType}",
+        "focusAreas": ${JSON.stringify(focusAreas || [])}
+      }`
 }
 
 // Main tool call handler
@@ -207,7 +206,7 @@ async function auditWebsiteUX(args: {
     
     // Analyze with GPT-4V
     console.log(`Analyzing UX for ${pageType} page...`)
-    const analysis = await analyzeScreenshotWithGPTV(screenshotPath, pageType, focusAreas, apiKey)
+    const analysis = await analyzeScreenshotWithGPTV(screenshotPath, device, pageType, focusAreas, apiKey)
     
     return {
       success: true,
@@ -367,6 +366,7 @@ async function captureScreenshot(
 // GPT-4V analysis function
 async function analyzeScreenshotWithGPTV(
   screenshotPath: string,
+  device: string,
   pageType: string,
   focusAreas: string[],
   apiKey: string
@@ -379,31 +379,10 @@ async function analyzeScreenshotWithGPTV(
   const base64Image = screenshotBuffer.toString('base64')
   
   // Build analysis prompt
-  let prompt = UX_AUDIT_PROMPTS[pageType as keyof typeof UX_AUDIT_PROMPTS] || UX_AUDIT_PROMPTS.general
-  
-  if (focusAreas.length > 0) {
-    prompt += `\n\nPay special attention to these areas: ${focusAreas.join(', ')}`
-  }
-  
-  prompt += `\n\nReturn your analysis in this JSON format:
-{
-  "score": 75,
-  "summary": "Brief overall assessment",
-  "recommendations": [
-    {
-      "title": "Recommendation title",
-      "description": "Detailed explanation",
-      "priority": "high|medium|low",
-      "impact": "Expected conversion impact"
-    }
-  ],
-  "strengths": ["What's working well"],
-  "weaknesses": ["Areas for improvement"],
-  "mobileReadiness": "Assessment of mobile optimization"
-}`
+  let prompt = getPrompt(device, pageType, focusAreas)
 
   const response = await openai.chat.completions.create({
-    model: 'gpt-4o',
+    model: 'gpt-4.1-mini',
     max_tokens: 1500,
     temperature: 0.3,
     messages: [

@@ -3,7 +3,10 @@ import { useRuntimeConfig } from '#imports'
 import OpenAI from 'openai'
 
 // Import the new modular architecture
-import { getThriveNBotSystemPrompt, getStreamingStatusPrompt } from '../lib/prompts/thrivebot-prompts'
+import {
+  getThriveBotSystemPrompt,
+  getStreamingStatusPrompt
+} from '../lib/prompts/thrivebot-prompts'
 import { ALL_TOOL_DEFINITIONS, routeToolCall } from '../lib/mcp/tools-registry'
 import { runReasoningLoop } from '../lib/mcp/reasoning-loop'
 
@@ -27,7 +30,7 @@ export default defineEventHandler(async (event) => {
     const messages: Array<{ type: string, content: string, status?: string }> = []
     
     // Use centralized system prompt
-    const systemPrompt = getThriveNBotSystemPrompt()
+    const systemPrompt = getThriveBotSystemPrompt()
 
     // Build conversation with history
     const conversationMessages = [
@@ -61,7 +64,7 @@ export default defineEventHandler(async (event) => {
       messages,
       ALL_TOOL_DEFINITIONS,
       routeToolCall,
-      6  // Max iterations
+      10  // Max iterations
     )
     
     messages.push({ 
