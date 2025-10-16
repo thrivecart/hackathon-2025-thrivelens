@@ -7,6 +7,35 @@ import { writeFile, mkdir } from 'fs/promises'
 import { join } from 'path'
 import { existsSync } from 'fs'
 
+// Simple in-memory caches (per server process)
+const SIX_HOURS = 6 * 60 * 60 * 1000
+
+type Viewport = { width: number; height: number }
+
+type ScreenshotCacheEntry = {
+  path: string
+  url: string
+  device: string
+  viewport: Viewport
+  timestamp: number
+}
+
+// key: `${url}|${device}|${viewport.width}x${viewport.height}`
+const SCREENSHOT_CACHE = new Map<string, ScreenshotCacheEntry>()
+
+// Cache UX analyses to avoid re-analyzing when focus areas/pageType repeat
+// key: `${screenshotPath}|${device}|${pageType}|${JSON.stringify(sortedFocusAreas)}`
+const ANALYSIS_CACHE = new Map<string, any>()
+
+function screenshotKey(url: string, device: string, viewport: Viewport) {
+  return `${url}|${device}|${viewport.width}x${viewport.height}`
+}
+
+function analysisKey(screenshotPath: string, device: string, pageType: string, focusAreas: string[]) {
+  const sorted = [...(focusAreas || [])].sort()
+  return `${screenshotPath}|${device}|${pageType}|${JSON.stringify(sorted)}`
+}
+
 // Tool definitions for OpenAI function calling
 export const UX_AUDIT_TOOLS = [
   {
@@ -86,6 +115,12 @@ export function getPrompt(device:string, pageType: string, focusAreas: string[])
          - Indicators of loading state, lazy loading, image optimization.
       7. **User Flow**
          - Ease of progression toward primary goal (purchase, signup, etc.).
+      8. **SEO & Content Accessibility**
+         - Page title and meta description relevance.
+         - Heading structure (H1–H3 hierarchy) and keyword clarity.
+         - Alt text usage on visuals.
+         - Mobile and Core Web Vitals performance indicators.
+         - Semantic HTML and internal linking consistency.
       ---
       
       ### Requirements:
@@ -97,8 +132,9 @@ export function getPrompt(device:string, pageType: string, focusAreas: string[])
         - Visual design
         - Conversion readiness
         - Mobile optimization (if applicable)
+        - SEO readiness
         - Focus areas: ${JSON.stringify(focusAreas || [])}
-      - Suggest **3–7 actionable, prioritized recommendations** to improve conversions and UX.
+      - Suggest **actionable, prioritized recommendations** to improve conversions and UX.
       - It is important if you can point a specific element (a button, a header, a text etc,.) on the page that needs improvement. This will make the analysis more precise and objective.
       
       Return your analysis strictly in **valid JSON** format as follows:
@@ -110,7 +146,8 @@ export function getPrompt(device:string, pageType: string, focusAreas: string[])
           "conversionReadiness": 90,
           "mobileOptimization": 75,
           "trustAndCredibility": 88,
-          "accessibility": 70
+          "accessibility": 70,
+          "seoReadiness": 82
         },
         "summary": "Brief executive summary (2–3 sentences).",
         "strengths": ["List of key positives"],
@@ -178,46 +215,68 @@ async function auditWebsiteUX(args: {
   try {
     // Determine viewport size
     const viewport = args.viewport || DEVICE_PRESETS[device]
-    
-    // Take screenshot with retry logic
-    console.log(`Taking ${device} screenshot of ${url}...`)
-    let screenshotPath
-    let retryCount = 0
-    const maxRetries = 2
-    
-    while (retryCount <= maxRetries) {
-      try {
-        screenshotPath = await captureScreenshot(url, viewport, device)
-        break
-      } catch (error: any) {
-        retryCount++
-        console.log(`Screenshot attempt ${retryCount} failed: ${error.message}`)
-        
-        if (retryCount > maxRetries) {
-          // Final attempt failed, provide helpful error message
-          if (error.message.includes('Timeout')) {
-            throw new Error(
-              `The webpage took too long to load (tried ${maxRetries + 1} times). ` +
-              'This might be due to slow loading, heavy JavaScript, or network issues. ' +
-              'Please try again or check if the website is accessible.'
-            )
+
+    // Try to reuse a recent screenshot for the same URL/device/viewport
+    let screenshotPath: string | undefined
+    const sKey = screenshotKey(url, device, viewport)
+    const cached = SCREENSHOT_CACHE.get(sKey)
+    const now = Date.now()
+
+    if (cached && existsSync(cached.path) && (now - cached.timestamp) < SIX_HOURS) {
+      console.log(`Reusing cached ${device} screenshot for ${url}: ${cached.path}`)
+      screenshotPath = cached.path
+    } else {
+      // Take screenshot with retry logic
+      console.log(`Taking ${device} screenshot of ${url}...`)
+      let retryCount = 0
+      const maxRetries = 2
+
+      while (retryCount <= maxRetries) {
+        try {
+          screenshotPath = await captureScreenshot(url, viewport, device)
+          // Save to cache
+          SCREENSHOT_CACHE.set(sKey, { path: screenshotPath, url, device, viewport, timestamp: now })
+          break
+        } catch (error: any) {
+          retryCount++
+          console.log(`Screenshot attempt ${retryCount} failed: ${error.message}`)
+
+          if (retryCount > maxRetries) {
+            if (error.message.includes('Timeout')) {
+              throw new Error(
+                `The webpage took too long to load (tried ${maxRetries + 1} times). ` +
+                'This might be due to slow loading, heavy JavaScript, or network issues. ' +
+                'Please try again or check if the website is accessible.'
+              )
+            }
+            throw error
           }
-          throw error
+
+          await new Promise(resolve => setTimeout(resolve, 2000))
         }
-        
-        // Wait before retry
-        await new Promise(resolve => setTimeout(resolve, 2000))
+      }
+
+      if (!screenshotPath) {
+        throw new Error('Failed to capture screenshot after multiple attempts')
       }
     }
-    
-    if (!screenshotPath) {
-      throw new Error('Failed to capture screenshot after multiple attempts')
-    }
-    
-    // Analyze with GPT-4V
+
+    // Analyze with GPT-4V (reuse analysis if same screenshot + params)
     console.log(`Analyzing UX for ${pageType} page...`)
-    const analysis = await analyzeScreenshotWithGPTV(screenshotPath, device, pageType, focusAreas, apiKey)
-    
+    const aKey = analysisKey(screenshotPath, device, pageType, focusAreas)
+    let analysis: any
+    const cachedAnalysis = ANALYSIS_CACHE.get(aKey)
+    if (cachedAnalysis) {
+      console.log(`Reusing cached UX analysis for ${url} (${device}/${pageType})`)
+      analysis = cachedAnalysis
+    } else {
+      analysis = await analyzeScreenshotWithGPTV(screenshotPath, device, pageType, focusAreas, apiKey)
+      ANALYSIS_CACHE.set(aKey, analysis)
+    }
+
+    // Normalize analysis (handles cases where model returned JSON inside a code block)
+    analysis = normalizeUxAnalysis(analysis)
+
     return {
       success: true,
       url,
@@ -226,10 +285,10 @@ async function auditWebsiteUX(args: {
       viewport,
       screenshotPath,
       analysis,
-      recommendations: analysis.recommendations || [],
-      score: analysis.score || null,
+      recommendations: Array.isArray(analysis?.recommendations) ? analysis.recommendations : [],
+      score: analysis?.overallScore ?? analysis?.score ?? null,
       focusAreas,
-      message: `UX audit completed for ${pageType} page`
+      message: `UX audit completed for ${pageType} page${cached ? ' (reused screenshot)' : ''}`
     }
 
   } catch (error: any) {
@@ -424,7 +483,12 @@ async function analyzeScreenshotWithGPTV(
   try {
     return JSON.parse(content)
   } catch {
-    // If JSON parsing fails, return structured response
+    // Try to extract code-fenced JSON from the content
+    const fenced = content.match(/```json\s*([\s\S]*?)```/i)
+    if (fenced && fenced[1]) {
+      try { return JSON.parse(fenced[1]) } catch {}
+    }
+    // If JSON parsing still fails, return structured response
     return {
       score: null,
       summary: content,
@@ -468,4 +532,45 @@ export function extractUrlFromMessage(message: string): string | null {
   const urlRegex = /https?:\/\/[^\s]+/g
   const matches = message.match(urlRegex)
   return matches ? matches[0] : null
+}
+
+// Normalization helpers (placed here for reuse)
+function tryParseJSON(input: string): any | null { try { return JSON.parse(input) } catch { return null } }
+function extractJSONFromText(text: string): any | null {
+  if (!text || typeof text !== 'string') return null
+  const fenced = text.match(/```json\s*([\s\S]*?)```/i)
+  if (fenced && fenced[1]) {
+    const parsed = tryParseJSON(fenced[1])
+    if (parsed) return parsed
+  }
+  const braceIdx = text.indexOf('{')
+  if (braceIdx !== -1) {
+    const possible = text.slice(braceIdx)
+    const parsed = tryParseJSON(possible)
+    if (parsed) return parsed
+  }
+  return null
+}
+function normalizeUxAnalysis(analysis: any): any {
+  if (!analysis) return analysis
+  if (typeof analysis === 'string') {
+    const parsed = extractJSONFromText(analysis)
+    return parsed || { summary: analysis }
+  }
+  if (typeof analysis.summary === 'string') {
+    const embedded = extractJSONFromText(analysis.summary)
+    if (embedded && typeof embedded === 'object') {
+      analysis = { ...embedded, ...analysis }
+      if (embedded.summary) analysis.summary = embedded.summary
+    }
+  }
+  if (!Array.isArray(analysis.recommendations)) analysis.recommendations = []
+  analysis.recommendations = analysis.recommendations.map((r: any) => {
+    if (!r) return r
+    if (Array.isArray(r.links) && (!r.resources || r.resources.length === 0)) {
+      r.resources = r.links
+    }
+    return r
+  })
+  return analysis
 }

@@ -71,13 +71,13 @@
     </div>
 
     <div class="sticky bottom-0 left-0 right-0 pt-2" style="background: linear-gradient(180deg, rgba(0,0,0,0) 0%, var(--bg) 40%)">
-      <div class="bg-bg-soft border border-border rounded-composer p-2 flex gap-2 items-end">
-        <textarea v-model="prompt" class="flex-1 resize-none bg-transparent text-text border-0 outline-none disabled:opacity-60 disabled:cursor-not-allowed" placeholder="Message Thrivebot…" rows="1" style="min-height: 40px; max-height: 160px; overflow: auto;" @keydown.enter.exact.prevent="run" :disabled="loading"></textarea>
+      <div class="bg-bg-soft border border-border rounded-composer py-2 px-5 flex gap-2 items-end">
+        <textarea v-model="prompt" class="flex-1 resize-none bg-transparent text-text border-0 outline-none disabled:opacity-60 disabled:cursor-not-allowed" placeholder="Enter your prompt here" rows="1" style="min-height: 40px; max-height: 160px; overflow: auto;" @keydown.enter.exact.prevent="run" :disabled="loading"></textarea>
         <div class="flex gap-3 items-center">
           <button class="bg-accent text-gray-900 border border-transparent px-3.5 py-2.5 rounded-button font-semibold cursor-pointer transition-colors disabled:opacity-60 disabled:cursor-not-allowed" @click="run" :disabled="loading">{{ loading ? 'Processing...' : 'Send' }}</button>
         </div>
       </div>
-      <div class="text-xs text-center text-muted mt-1.5">AI-powered business insights with real-time data fetching</div>
+      <div class="text-xs text-center text-muted mt-1.5 py-3">Thrivebot can make mistake.</div>
     </div>
   </div>
 </template>
