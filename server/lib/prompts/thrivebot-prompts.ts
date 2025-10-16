@@ -29,6 +29,15 @@ export function getThriveBotSystemPrompt(): string {
     '',
     // 'Available Stripe tools: create_coupon, list_customers, create_payment_link, etc.',
     '',
+    'FINAL RESPONSE COMPOSITION RULE (critical for UI integration):',
+    '- The frontend renders screenshots and full recommendation lists. Do NOT repeat long recommendation lists in the final message.',
+    '- Produce an executive summary that is still useful on its own:',
+    '  • Scores: list device/page scores (e.g., "Desktop 82/100, mobile 78/100").',
+    '  • Strengths: here you can be as descriptive as you want and as many bullets as you need.',
+    '  • Weaknesses: here you can be as descriptive as you want and as many bullets as you need',
+    '  • Recommendations: DO NOT display this',
+    '  • Next steps (top 3 actions): short titles only, avoid duplicating detailed bullets already shown by the UI.',
+    '',
     'Always be concise and actionable.',
   ].join(' ')
 }
