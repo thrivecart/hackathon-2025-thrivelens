@@ -1,18 +1,16 @@
 <template>
-  <div>
-    <NuxtRouteAnnouncer />
-    <div class="container stack" style="min-height: 100vh; gap: 16px;">
-      <header class="row" style="justify-content: space-between; position: sticky; top: 0; z-index: 20; background: var(--bg); padding-top: 8px;">
-        <div class="row" style="gap:8px; align-items: baseline;">
-          <div class="badge">MVP</div>
-          <div class="heading">Thrivebot</div>
-        </div>
-        <ThemeToggle />
-      </header>
-      <main style="flex: 1; display: flex; flex-direction: column;">
-        <NuxtPage />
-      </main>
-    </div>
+  <NuxtRouteAnnouncer />
+  <div class="mx-auto px-container h-screen flex flex-col gap-4 relative">
+    <header class="flex justify-between items-center sticky top-0 z-20 bg-bg pt-2">
+      <div class="flex gap-2 items-baseline">
+        <div class="bg-bg border border-border px-2 py-1 rounded-full text-muted text-xs">UX</div>
+        <div class="font-bold text-lg">Thrivebot</div>
+      </div>
+      <ThemeToggle />
+    </header>
+    <main class="flex-1 min-h-0 flex flex-col">
+      <NuxtPage />
+    </main>
   </div>
 </template>
 

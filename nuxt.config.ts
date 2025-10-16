@@ -3,6 +3,7 @@ export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   devtools: { enabled: true },
   css: ['~/assets/styles.css'],
+  modules: ['@nuxtjs/tailwindcss'],
   runtimeConfig: {
     thrivecart: {
       apiKey: process.env.NUXT_THRIVECART_API_KEY,

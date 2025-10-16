@@ -1,54 +1,75 @@
 <template>
-  <div class="chat-shell">
-    <div class="chat-scroll" ref="scrollEl">
-      <div v-for="(m, i) in messages" :key="i" class="message" :class="m.role">
-        <div class="avatar">{{ m.role === 'assistant' ? 'T' : 'You' }}</div>
-        <div class="bubble" :class="m.role">
-          <div class="small" style="margin-bottom:6px; color: var(--muted)">{{ m.role === 'assistant' ? 'Thrivebot' : 'You' }}</div>
-          <div class="message-content">
+  <div class="flex flex-col flex-1 min-h-0">
+    <div class="flex-1 overflow-auto flex flex-col gap-3 py-2 pb-6 overscroll-none" ref="scrollEl">
+      <div v-for="(m, i) in messages" :key="i" class="flex gap-2.5 max-w-chat" :class="m.role === 'assistant' ? 'self-start' : 'self-end flex-row-reverse'">
+        <div class="w-7 h-7 rounded-full inline-flex items-center justify-center text-xs border border-border bg-bg-soft text-muted">{{ m.role === 'assistant' ? 'T' : 'You' }}</div>
+        <div class="px-3 py-2.5 rounded-message border border-border" :class="m.role === 'assistant' ? 'bg-bg-soft' : ''"
+             :style="m.role === 'user' ? 'background: rgba(62,123,246,0.15); border-color: rgba(62,123,246,0.35);' : ''">
+          <div class="text-xs text-muted mb-1.5">{{ m.role === 'assistant' ? 'Thrivebot' : 'You' }}</div>
+          <div class="whitespace-pre-wrap break-words">
             <!-- Show streaming progress if it exists -->
-            <div v-if="m.streamMessages" class="stream-container">
-              <div 
-                v-for="(streamMsg, idx) in m.streamMessages" 
-                :key="idx" 
-                class="stream-message"
-                :class="[streamMsg.type, streamMsg.status]"
+            <div v-if="m.streamMessages" class="my-2">
+              <div
+                  v-for="(streamMsg, idx) in m.streamMessages"
+                  :key="idx"
+                  class="flex items-start my-1 px-2 py-1 rounded text-sm"
+                  :class="{
+                  'opacity-80': streamMsg.type === 'status',
+                  'bg-yellow-50 border-l-4 border-yellow-400': streamMsg.status === 'working',
+                  'bg-blue-50 border-l-4 border-blue-600': streamMsg.status === 'success',
+                  'bg-red-50 border-l-4 border-red-500': streamMsg.status === 'error',
+                  'mt-2 px-3 py-2 rounded-lg border border-border font-medium bg-bg': streamMsg.type === 'final'
+                }"
+                  :style="(streamMsg.type === 'status' || streamMsg.type === 'progress') && !streamMsg.status ? 'background: var(--bg-soft)' : ''"
               >
-                <div class="stream-icon">
+                <div class="mr-2 flex-shrink-0">
                   <span v-if="streamMsg.status === 'thinking'">🤔</span>
                   <span v-else-if="streamMsg.status === 'working'">⚙️</span>
                   <span v-else-if="streamMsg.status === 'success'">✅</span>
                   <span v-else-if="streamMsg.status === 'error'">❌</span>
                   <span v-else-if="streamMsg.type === 'final'">💬</span>
                 </div>
-                <div class="stream-content">
+                <div class="flex-1 leading-snug">
                   {{ streamMsg.content }}
                   <!-- Show screenshot if present -->
-                  <div v-if="streamMsg.screenshotUrl" class="screenshot-container">
-                    <img 
-                      :src="streamMsg.screenshotUrl" 
-                      alt="Website screenshot"
-                      class="website-screenshot"
-                      @load="scrollToBottom"
+                  <div v-if="streamMsg.screenshotUrl" class="my-4 rounded-lg overflow-hidden border border-border" style="background: var(--bg-soft)">
+                    <img
+                        :src="streamMsg.screenshotUrl"
+                        alt="Website screenshot"
+                        class="w-full max-w-2xl h-auto block cursor-pointer transition-transform duration-200 hover:scale-105"
+                        @load="scrollToBottom"
                     />
                   </div>
                   <!-- Show UX analysis if present -->
-                  <div v-if="streamMsg.uxAnalysis" class="ux-analysis">
-                    <div v-if="streamMsg.uxAnalysis.score" class="ux-score">
+                  <div v-if="streamMsg.uxAnalysis" class="my-4 p-4 border border-border rounded-lg" style="background: var(--bg)">
+                    <div v-if="streamMsg.uxAnalysis.score" class="mb-3 px-3 py-2 bg-sky-50 border border-sky-500 rounded text-sky-900 text-sm dark:bg-sky-900 dark:border-sky-400 dark:text-sky-100">
                       <strong>UX Score: {{ streamMsg.uxAnalysis.score }}/100</strong>
                     </div>
-                    <div v-if="streamMsg.uxAnalysis.summary" class="ux-summary">
+                    <div v-if="streamMsg.uxAnalysis.summary" class="mb-4 p-3 rounded leading-relaxed" style="background: var(--bg-soft)">
                       {{ streamMsg.uxAnalysis.summary }}
                     </div>
-                    <div v-if="streamMsg.uxAnalysis.recommendations && streamMsg.uxAnalysis.recommendations.length" class="recommendations">
-                      <h4>Recommendations:</h4>
-                      <div v-for="(rec, idx) in streamMsg.uxAnalysis.recommendations" :key="idx" class="recommendation" :class="rec.priority">
-                        <div class="rec-header">
+                    <div v-if="streamMsg.uxAnalysis.recommendations && streamMsg.uxAnalysis.recommendations.length" class="mt-4">
+                      <h4 class="m-0 mb-3 text-text text-lg">Recommendations:</h4>
+                      <div v-for="(rec, idx) in streamMsg.uxAnalysis.recommendations" :key="idx"
+                           class="my-3 p-3 rounded border-l-4"
+                           :class="{
+                             'border-l-red-500 bg-red-50 dark:bg-red-950 dark:border-l-red-400': rec.priority === 'high',
+                             'border-l-amber-500 bg-amber-50 dark:bg-amber-950 dark:border-l-amber-400': rec.priority === 'medium',
+                             'border-l-green-500 bg-green-50 dark:bg-green-950 dark:border-l-green-400': rec.priority === 'low',
+                             'border-l-gray-500': !rec.priority || (rec.priority !== 'high' && rec.priority !== 'medium' && rec.priority !== 'low')
+                           }"
+                           :style="!rec.priority || (rec.priority !== 'high' && rec.priority !== 'medium' && rec.priority !== 'low') ? 'background: var(--bg-soft)' : ''">
+                        <div class="flex justify-between items-center mb-2">
                           <strong>{{ rec.title }}</strong>
-                          <span class="priority-badge" :class="rec.priority">{{ rec.priority }}</span>
+                          <span class="text-xs px-2 py-0.5 rounded-xl uppercase font-semibold"
+                                :class="{
+                                  'bg-red-200 text-red-800 dark:bg-red-800 dark:text-red-200': rec.priority === 'high',
+                                  'bg-amber-200 text-amber-800 dark:bg-amber-800 dark:text-amber-200': rec.priority === 'medium',
+                                  'bg-green-200 text-green-800 dark:bg-green-800 dark:text-green-200': rec.priority === 'low'
+                                }">{{ rec.priority }}</span>
                         </div>
-                        <p>{{ rec.description }}</p>
-                        <div v-if="rec.impact" class="impact">💡 {{ rec.impact }}</div>
+                        <p class="my-2 leading-relaxed text-text">{{ rec.description }}</p>
+                        <div v-if="rec.impact" class="mt-2 text-sm italic text-muted">💡 {{ rec.impact }}</div>
                       </div>
                     </div>
                   </div>
@@ -59,12 +80,12 @@
             <div v-else>
               {{ m.content }}
               <!-- Show screenshot in regular message if present -->
-              <div v-if="m.screenshotUrl" class="screenshot-container">
-                <img 
-                  :src="m.screenshotUrl" 
-                  alt="Website screenshot"
-                  class="website-screenshot"
-                  @load="scrollToBottom"
+              <div v-if="m.screenshotUrl" class="my-4 rounded-lg overflow-hidden border border-border" style="background: var(--bg-soft)">
+                <img
+                    :src="m.screenshotUrl"
+                    alt="Website screenshot"
+                    class="w-full max-w-2xl h-auto block cursor-pointer transition-transform duration-200 hover:scale-105"
+                    @load="scrollToBottom"
                 />
               </div>
             </div>
@@ -73,23 +94,24 @@
       </div>
     </div>
 
-    <div class="composer">
-      <div class="composer-inner">
-        <textarea 
-          v-model="prompt" 
-          class="textarea" 
-          placeholder="Message Thrivebot…" 
-          rows="1" 
-          @keydown.enter.exact.prevent="run"
-          :disabled="loading"
+    <div class="sticky bottom-0 left-0 right-0 pt-2" style="background: linear-gradient(180deg, rgba(0,0,0,0) 0%, var(--bg) 40%)">
+      <div class="bg-bg-soft border border-border rounded-composer p-2 flex gap-2 items-end">
+        <textarea
+            v-model="prompt"
+            class="flex-1 resize-none bg-transparent text-text border-0 outline-none disabled:opacity-60 disabled:cursor-not-allowed"
+            placeholder="Message Thrivebot…"
+            rows="1"
+            style="min-height: 40px; max-height: 160px; overflow: auto;"
+            @keydown.enter.exact.prevent="run"
+            :disabled="loading"
         ></textarea>
-        <div class="row">
-          <button class="btn" @click="run" :disabled="loading">
+        <div class="flex gap-3 items-center">
+          <button class="bg-accent text-gray-900 border border-transparent px-3.5 py-2.5 rounded-button font-semibold cursor-pointer transition-colors disabled:opacity-60 disabled:cursor-not-allowed" @click="run" :disabled="loading">
             {{ loading ? 'Processing...' : 'Send' }}
           </button>
         </div>
       </div>
-      <div class="small" style="text-align:center; color: var(--muted); margin-top: 6px;">
+      <div class="text-xs text-center text-muted mt-1.5">
         AI-powered business insights with real-time data fetching
       </div>
     </div>
@@ -129,9 +151,9 @@ interface Message {
 const prompt = ref('')
 const loading = ref(false)
 const messages = ref<Message[]>([
-  { 
-    role: 'assistant', 
-    content: 'How can I help with your ThriveCart business? Try "What are my products with prices?" or "Who is my top customer?"' 
+  {
+    role: 'assistant',
+    content: 'How can I help with your ThriveCart business? Try "What are my products with prices?" or "Who is my top customer?"'
   }
 ])
 const scrollEl = ref<HTMLElement | null>(null)
@@ -145,8 +167,8 @@ function scrollToBottom() {
 watch(messages, scrollToBottom, { deep: true })
 
 function addAssistantMessage(content: string, streamMessages?: StreamMessage[]) {
-  messages.value.push({ 
-    role: 'assistant', 
+  messages.value.push({
+    role: 'assistant',
     content,
     streamMessages
   })
@@ -159,7 +181,7 @@ function addUserMessage(content: string) {
 async function run() {
   const q = prompt.value.trim()
   if (!q || loading.value) return
-  
+
   addUserMessage(q)
   prompt.value = ''
   loading.value = true
@@ -171,17 +193,17 @@ async function run() {
     streamMessages: []
   }
   messages.value.push(liveMessage)
-  
+
   try {
     // Convert messages to conversation history format
     const history = messages.value
-      .filter(m => m.role !== 'system') 
-      .slice(-12, -1) // Keep last messages but exclude the live message we just added
-      .map(m => ({
-        role: m.role === 'assistant' ? 'assistant' : 'user',
-        content: m.content
-      }))
-    
+        .filter(m => m.role !== 'system')
+        .slice(-12, -1) // Keep last messages but exclude the live message we just added
+        .map(m => ({
+          role: m.role === 'assistant' ? 'assistant' : 'user',
+          content: m.content
+        }))
+
     // Use POST request to chat-stream endpoint
     const response = await fetch('/api/chat-stream', {
       method: 'POST',
@@ -199,11 +221,11 @@ async function run() {
     }
 
     const result = await response.json()
-    
+
     // Process the messages from the POST response
     if (result.messages && Array.isArray(result.messages)) {
       liveMessage.streamMessages = result.messages
-      
+
       // Set the main content from the final message
       const finalMessage = result.messages.find((msg: StreamMessage) => msg.type === 'final')
       if (finalMessage) {
@@ -212,10 +234,10 @@ async function run() {
     } else {
       throw new Error('Invalid response format')
     }
-    
+
     loading.value = false
     scrollToBottom()
-    
+
   } catch (e: any) {
     // Handle errors
     if (!liveMessage.streamMessages) {
@@ -232,247 +254,16 @@ async function run() {
 }
 
 // Quick action functions
-async function quickTop() { 
+async function quickTop() {
   prompt.value = 'What are my top 3 products by revenue?'
-  await run() 
+  await run()
 }
-async function quickRevenue() { 
+async function quickRevenue() {
   prompt.value = 'Show revenue for the last 7 days'
-  await run() 
+  await run()
 }
-async function quickCustomers() { 
+async function quickCustomers() {
   prompt.value = 'Who are my top customers?'
-  await run() 
+  await run()
 }
 </script>
-
-<style scoped>
-.stream-container {
-  margin: 8px 0;
-}
-
-.stream-message {
-  display: flex;
-  align-items: flex-start;
-  margin: 4px 0;
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 0.9em;
-}
-
-.stream-message.status {
-  background: var(--bg-muted);
-  opacity: 0.8;
-}
-
-.stream-message.progress {
-  background: var(--bg-muted);
-}
-
-.stream-message.progress.working {
-  background: #fff3cd;
-  border-left: 3px solid #ffc107;
-}
-
-.stream-message.progress.success {
-  background: #d1edff;
-  border-left: 3px solid #0066cc;
-}
-
-.stream-message.progress.error {
-  background: #f8d7da;
-  border-left: 3px solid #dc3545;
-}
-
-.stream-message.final {
-  background: var(--bg);
-  font-weight: 500;
-  margin-top: 8px;
-  padding: 8px 12px;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-}
-
-.stream-icon {
-  margin-right: 8px;
-  flex-shrink: 0;
-}
-
-.stream-content {
-  flex: 1;
-  line-height: 1.4;
-}
-
-.composer textarea:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.composer button:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-/* UX Audit Styles */
-.screenshot-container {
-  margin: 16px 0;
-  border-radius: 8px;
-  overflow: hidden;
-  border: 1px solid var(--border);
-  background: var(--bg-muted);
-}
-
-.website-screenshot {
-  width: 100%;
-  max-width: 600px;
-  height: auto;
-  display: block;
-  cursor: pointer;
-  transition: transform 0.2s ease;
-}
-
-.website-screenshot:hover {
-  transform: scale(1.02);
-}
-
-.ux-analysis {
-  margin: 16px 0;
-  padding: 16px;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-}
-
-.ux-score {
-  margin-bottom: 12px;
-  padding: 8px 12px;
-  background: #f0f9ff;
-  border: 1px solid #0ea5e9;
-  border-radius: 6px;
-  color: #0c4a6e;
-  font-size: 0.95em;
-}
-
-.ux-summary {
-  margin-bottom: 16px;
-  padding: 12px;
-  background: var(--bg-muted);
-  border-radius: 6px;
-  line-height: 1.5;
-}
-
-.recommendations {
-  margin-top: 16px;
-}
-
-.recommendations h4 {
-  margin: 0 0 12px 0;
-  color: var(--text);
-  font-size: 1.1em;
-}
-
-.recommendation {
-  margin: 12px 0;
-  padding: 12px;
-  border-radius: 6px;
-  border-left: 4px solid #6b7280;
-  background: var(--bg-muted);
-}
-
-.recommendation.high {
-  border-left-color: #ef4444;
-  background: #fef2f2;
-}
-
-.recommendation.medium {
-  border-left-color: #f59e0b;
-  background: #fffbeb;
-}
-
-.recommendation.low {
-  border-left-color: #10b981;
-  background: #f0fdf4;
-}
-
-.rec-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
-}
-
-.priority-badge {
-  font-size: 0.75em;
-  padding: 2px 8px;
-  border-radius: 12px;
-  text-transform: uppercase;
-  font-weight: 600;
-}
-
-.priority-badge.high {
-  background: #fecaca;
-  color: #991b1b;
-}
-
-.priority-badge.medium {
-  background: #fed7aa;
-  color: #9a3412;
-}
-
-.priority-badge.low {
-  background: #bbf7d0;
-  color: #166534;
-}
-
-.recommendation p {
-  margin: 8px 0;
-  line-height: 1.5;
-  color: var(--text-muted);
-}
-
-.impact {
-  margin-top: 8px;
-  font-size: 0.9em;
-  font-style: italic;
-  color: var(--muted);
-}
-
-/* Dark mode adjustments */
-@media (prefers-color-scheme: dark) {
-  .ux-score {
-    background: #0c4a6e;
-    border-color: #0ea5e9;
-    color: #e0f2fe;
-  }
-  
-  .recommendation.high {
-    background: #450a0a;
-    border-left-color: #ef4444;
-  }
-  
-  .recommendation.medium {
-    background: #451a03;
-    border-left-color: #f59e0b;
-  }
-  
-  .recommendation.low {
-    background: #052e16;
-    border-left-color: #10b981;
-  }
-  
-  .priority-badge.high {
-    background: #991b1b;
-    color: #fecaca;
-  }
-  
-  .priority-badge.medium {
-    background: #9a3412;
-    color: #fed7aa;
-  }
-  
-  .priority-badge.low {
-    background: #166534;
-    color: #bbf7d0;
-  }
-}
-</style>

@@ -1,5 +1,5 @@
 <template>
-  <button class="btn secondary" @click="toggle">{{ label }}</button>
+  <button class="bg-transparent text-text border border-border px-3.5 py-2.5 rounded-button font-semibold cursor-pointer transition-colors hover:bg-bg-soft" @click="toggle">{{ label }}</button>
 </template>
 
 <script setup lang="ts">
@@ -9,8 +9,13 @@ const theme = ref<'light' | 'dark'>('dark')
 
 function applyTheme() {
   const root = document.documentElement
-  if (theme.value === 'light') root.classList.add('light')
-  else root.classList.remove('light')
+  if (theme.value === 'dark') {
+    root.classList.add('dark')
+    root.classList.remove('light')
+  } else {
+    root.classList.remove('dark')
+    root.classList.add('light')
+  }
 }
 
 function toggle() {
