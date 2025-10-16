@@ -6,13 +6,12 @@
         <div class="px-3 py-2.5 rounded-message border border-border" :class="m.role === 'assistant' ? 'bg-bg-soft' : ''" :style="m.role === 'user' ? 'background: rgba(62,123,246,0.15); border-color: rgba(62,123,246,0.35);' : ''">
           <div class="text-xs text-muted mb-1.5">{{ m.role === 'assistant' ? 'Thrivebot' : 'You' }}</div>
           <div class="whitespace-pre-wrap break-words">
-            {{ m.content }}
             <div v-if="m.screenshotUrl" class="my-4 rounded-lg overflow-hidden border border-border" style="background: var(--bg-soft)">
               <img :src="m.screenshotUrl" alt="Website screenshot" class="w-full max-w-2xl h-auto block cursor-pointer transition-transform duration-200 hover:scale-105" @load="scrollToBottom" />
             </div>
             <div v-if="m.uxAnalysis" class="my-4 p-4 border border-border rounded-lg" style="background: var(--bg)">
-              <div v-if="m.uxAnalysis.score" class="mb-3 px-3 py-2 bg-sky-50 border border-sky-500 rounded text-sky-900 text-sm dark:bg-sky-900 dark:border-sky-400 dark:text-sky-100">
-                <strong>UX Score: {{ m.uxAnalysis.score }}/100</strong>
+              <div v-if="(m.uxAnalysis.overallScore || m.uxAnalysis.score)" class="mb-3 px-3 py-2 bg-sky-50 border border-sky-500 rounded text-sky-900 text-sm dark:bg-sky-900 dark:border-sky-400 dark:text-sky-100">
+                <strong>UX Score: {{ m.uxAnalysis.overallScore || m.uxAnalysis.score }}/100</strong>
               </div>
               <div v-if="m.uxAnalysis.summary" class="mb-4 p-3 rounded leading-relaxed" style="background: var(--bg-soft)">{{ m.uxAnalysis.summary }}</div>
               <div v-if="m.uxAnalysis.recommendations && m.uxAnalysis.recommendations.length" class="mt-4">
@@ -35,10 +34,11 @@
                           }">{{ rec.priority }}</span>
                   </div>
                   <p class="my-2 leading-relaxed text-text">{{ rec.description }}</p>
-                  <div v-if="rec.impact" class="mt-2 text-sm italic text-muted">💡 {{ rec.impact }}</div>
+                  <div v-if="rec.expectedImpact || rec.impact" class="mt-2 text-sm text-muted">💡 {{ rec.expectedImpact || rec.impact }}</div>
                 </div>
               </div>
             </div>
+            {{ m.content }}
           </div>
         </div>
       </div>
@@ -151,21 +151,33 @@ async function run() {
     let uxAnalysis: Message['uxAnalysis'] = null
 
     if (Array.isArray(result.messages)) {
+      // Pick final content
       const final = result.messages.find((msg: any) => msg.type === 'final') || result.messages[result.messages.length - 1]
       if (final) {
         content = final.content || ''
-        screenshotUrl = final.screenshotUrl
-        uxAnalysis = final.uxAnalysis || null
+      }
+      // Collect latest screenshot/uxAnalysis from any progress messages
+      for (const msg of result.messages) {
+        if (msg && (msg.screenshotUrl || msg.uxAnalysis)) {
+          if (msg.screenshotUrl) screenshotUrl = msg.screenshotUrl
+          if (msg.uxAnalysis) uxAnalysis = msg.uxAnalysis
+        }
       }
     } else if (result.message || result.content) {
       content = result.message || result.content
-      screenshotUrl = result.screenshotUrl
-      uxAnalysis = result.uxAnalysis || null
+      screenshotUrl = (result as any).screenshotUrl
+      uxAnalysis = (result as any).uxAnalysis || null
     } else {
       throw new Error('Invalid response format')
     }
 
-    messages.value.push({ role: 'assistant', content, screenshotUrl, uxAnalysis })
+    // Normalize uxAnalysis if it arrived as JSON string, and ensure recommendations is an array
+    let finalUx = uxAnalysis as any
+    try {
+      if (finalUx && typeof finalUx === 'string') finalUx = JSON.parse(finalUx)
+      if (finalUx && typeof finalUx.recommendations === 'string') finalUx.recommendations = JSON.parse(finalUx.recommendations)
+    } catch {}
+    messages.value.push({ role: 'assistant', content, screenshotUrl, uxAnalysis: finalUx || uxAnalysis })
 
     loading.value = false
     scrollToBottom()
