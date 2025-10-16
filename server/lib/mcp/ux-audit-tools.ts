@@ -63,12 +63,12 @@ const DEVICE_PRESETS = {
 // UX audit prompt templates
 export function getPrompt(device:string, pageType: string, focusAreas: string[]) : string {
   return  `
-      You are a senior UX and conversion optimization expert.
-      Analyze the provided webpage screenshot from a ${device} perspective. 
+      You are a senior UX and conversion optimization expert specializing in e-commerce and digital checkout experiences.  
+      Analyze the provided webpage screenshot from a ${device} perspective.  
       The page type is: ${pageType || 'general'}.
       
-      Your goal is to evaluate the page’s **user experience, clarity, and conversion effectiveness**, 
-      especially for ThriveCart pages or similar checkout and marketing pages.
+      Your goal is to objectively evaluate the page’s **user experience, clarity, and conversion effectiveness**, 
+      especially for ThriveCart pages or similar checkout, sales, and landing pages.
       
       ---
       ### Focus Areas:
@@ -91,19 +91,20 @@ export function getPrompt(device:string, pageType: string, focusAreas: string[])
       ### Requirements:
       - Be **objective** and **data-driven**, not purely aesthetic.
       - Identify **strengths** and **weaknesses**.
+      - Every **recommendation** must point to at least one identifiable on-screen element  (e.g., “green CTA button in hero section,” “pricing table header text,” “email field placeholder,” etc.).
       - Provide **clear numeric scores (1–100)** for:
         - Overall UX
         - Visual design
         - Conversion readiness
         - Mobile optimization (if applicable)
+        - Focus areas: ${JSON.stringify(focusAreas || [])}
       - Suggest **3–7 actionable, prioritized recommendations** to improve conversions and UX.
-      
-      If two screenshots (desktop & mobile) are provided, highlight **differences** in usability and consistency.
+      - It is important if you can point a specific element (a button, a header, a text etc,.) on the page that needs improvement. This will make the analysis more precise and objective.
       
       Return your analysis strictly in **valid JSON** format as follows:
       
       {
-        "overallScore": 85,
+        "overallScore": 85/100 (100 if perfect),
         "categoryScores": {
           "visualDesign": 80,
           "conversionReadiness": 90,
@@ -125,7 +126,16 @@ export function getPrompt(device:string, pageType: string, focusAreas: string[])
         "device": "${device}",
         "pageType": "${pageType}",
         "focusAreas": ${JSON.stringify(focusAreas || [])}
-      }`
+      }
+      
+      ### Guidance
+      While high-level feedback is acceptable, **prioritize precision** — e.g.  
+      DO - "The green CTA button in the hero section has low contrast against the white background, making it less noticeable."
+      DONT - "Make buttons stand out more"
+      
+      If two screenshots (desktop & mobile) are provided, highlight **differences** in usability and consistency.
+      
+      `
 }
 
 // Main tool call handler
