@@ -111,7 +111,7 @@
         </button>
       </div>
 
-      <div class="bg-bg-soft border border-border rounded-composer py-2 px-5 flex gap-2 items-end">
+      <div class="bg-bg-soft border border-border rounded-full py-2 px-5 flex gap-2 items-end">
         <!-- Hidden file input -->
         <input
             ref="fileInputRef"
@@ -150,14 +150,14 @@
 
           <!-- Send button -->
           <button
-              class="bg-accent text-white border border-transparent px-3.5 py-2.5 rounded-button font-semibold cursor-pointer transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              class="w-[150px] bg-accent text-white border border-transparent px-3.5 py-2.5 rounded-full font-semibold cursor-pointer transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
               @click="run"
               :disabled="loading"
           >{{ loading ? 'Processing...' : 'Send' }}
           </button>
         </div>
       </div>
-      <div class="text-xs text-center text-muted mt-1.5 py-3">Thrivelens can make mistake.</div>
+      <div class="text-xs text-center text-muted mt-1.5 py-3">ThriveLens may not always be accurate. Please review results carefully.</div>
     </div>
   </div>
 </template>
