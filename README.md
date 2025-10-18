@@ -10,7 +10,6 @@ ThriveLens combines OpenAI's vision and reasoning capabilities with automated sc
 - **User Experience**: Navigation, layout, visual hierarchy
 - **Mobile Responsiveness**: Cross-device experience analysis
 - **Accessibility**: WCAG compliance and usability issues
-- **SEO & Performance**: Technical optimization recommendations
 
 
 ## Quick Start
