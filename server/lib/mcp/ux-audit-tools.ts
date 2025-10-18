@@ -1,7 +1,7 @@
 import { useRuntimeConfig } from '#imports'
 import { chromium } from 'playwright'
 import OpenAI from 'openai'
-import { writeFile, mkdir } from 'fs/promises'
+import { mkdir } from 'fs/promises'
 import { join } from 'path'
 import { existsSync } from 'fs'
 
@@ -141,12 +141,6 @@ export function getPrompt(device:string, pageType: string, focusAreas: string[])
          - Indicators of loading state, lazy loading, image optimization.
       7. **User Flow**
          - Ease of progression toward primary goal (purchase, signup, etc.).
-      8. **SEO & Content Accessibility**
-         - Page title and meta description relevance.
-         - Heading structure (H1–H3 hierarchy) and keyword clarity.
-         - Alt text usage on visuals.
-         - Mobile and Core Web Vitals performance indicators.
-         - Semantic HTML and internal linking consistency.
       ---
       
       ### Requirements:
@@ -158,7 +152,6 @@ export function getPrompt(device:string, pageType: string, focusAreas: string[])
         - Visual design
         - Conversion readiness
         - Mobile optimization (if applicable)
-        - SEO readiness
         - Focus areas: ${JSON.stringify(focusAreas || [])}
       - Suggest **actionable, prioritized recommendations** to improve conversions and UX.
       - It is important if you can point a specific element (a button, a header, a text etc,.) on the page that needs improvement. This will make the analysis more precise and objective.
@@ -173,7 +166,6 @@ export function getPrompt(device:string, pageType: string, focusAreas: string[])
           "mobileOptimization": 75,
           "trustAndCredibility": 88,
           "accessibility": 70,
-          "seoReadiness": 82
         },
         "summary": "Brief executive summary (2–3 sentences).",
         "strengths": ["List of key positives"],

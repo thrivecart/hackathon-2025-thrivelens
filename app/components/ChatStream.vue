@@ -115,12 +115,14 @@
             class="hidden"
         />
 
-        <Button
+        <button
+            type="button"
             @click="triggerFileInput"
-            class="dark:text-white rounded-full w-12 h-12 text-muted hover:text-text transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+            :disabled="loading"
+            class="dark:text-white rounded-full w-12 h-12 text-muted hover:text-text transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center"
         >
           <Icon icon="line-md:plus" class="w-7 h-7" />
-        </Button>
+        </button>
 
         <textarea
             v-model="prompt"

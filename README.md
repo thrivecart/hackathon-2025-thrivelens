@@ -1,75 +1,131 @@
-# Nuxt Minimal Starter
+# ThriveLens
 
-Look at the [Nuxt documentation](https://nuxt.com/docs/getting-started/introduction) to learn more.
+An AI-powered UX audit and conversion optimization assistant built with Nuxt 3. Thrivelens analyzes website screenshots using GPT-4V to provide actionable conversion rate optimization recommendations.
 
-## Setup
+## What is ThriveLens?
 
-Make sure to install dependencies:
+ThriveLens combines OpenAI's vision and reasoning capabilities with automated screenshot capture to deliver expert-level UX audits through a conversational interface. Simply provide a URL, and get detailed analysis on:
+
+- **Conversion Optimization**: CTA placement, form design, trust signals
+- **User Experience**: Navigation, layout, visual hierarchy
+- **Mobile Responsiveness**: Cross-device experience analysis
+- **Accessibility**: WCAG compliance and usability issues
+- **SEO & Performance**: Technical optimization recommendations
+
+
+## Quick Start
+
+### Prerequisites
+
+- Node.js 18+ 
+- OpenAI API key with GPT-4V access
+
+### Setup
+
+1. **Install dependencies:**
 
 ```bash
-# npm
 npm install
-
-# pnpm
-pnpm install
-
-# yarn
-yarn install
-
-# bun
-bun install
 ```
 
-## Development Server
-
-Start the development server on `http://localhost:3000`:
+2. **Configure environment variables:**
 
 ```bash
-# npm
+cp .env.example .env
+```
+
+Edit `.env` and add your OpenAI API key:
+
+```bash
+NUXT_OPENAI_API_KEY=your_openai_api_key_here
+```
+
+3. **Start the development server:**
+
+```bash
 npm run dev
-
-# pnpm
-pnpm dev
-
-# yarn
-yarn dev
-
-# bun
-bun run dev
 ```
 
-## Production
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-Build the application for production:
+## Usage
+
+Try these example queries in the chat interface:
+
+- `audit https://example.com/checkout`
+- `analyze landing page https://example.com`
+- `review product page https://shop.com/product`
+- `check mobile UX https://site.com`
+- `audit homepage design https://company.com`
+
+## Features
+
+### UX Audit Tool
+- Automated screenshot capture (desktop, mobile, tablet viewports)
+- GPT-4V powered visual analysis
+- Page-type specific recommendations (checkout, landing, product, homepage)
+- Priority scoring for recommendations
+- Element-specific, actionable feedback
+
+### Smart Caching
+- Screenshot cache (6 hours) to avoid redundant captures
+- Analysis cache for faster responses
+- Efficient resource usage
+
+### Modern UI
+- ChatGPT-inspired minimal design
+- Light/dark mode with system preference detection
+- Responsive layout
+- Quick action buttons for common queries
+
+## Development
+
+### Build for Production
 
 ```bash
-# npm
 npm run build
-
-# pnpm
-pnpm build
-
-# yarn
-yarn build
-
-# bun
-bun run build
 ```
 
-Locally preview production build:
+### Preview Production Build
 
 ```bash
-# npm
 npm run preview
-
-# pnpm
-pnpm preview
-
-# yarn
-yarn preview
-
-# bun
-bun run preview
 ```
 
-Check out the [deployment documentation](https://nuxt.com/docs/getting-started/deployment) for more information.
+### Generate Static Site
+
+```bash
+npm run generate
+```
+
+## Project Structure
+
+```
+thrivelens/
+├── app/
+│   ├── app.vue                 # Root layout
+│   ├── pages/index.vue         # Chat interface
+│   └── components/
+│       ├── Chat.vue            # Conversational UI
+│       └── ThemeToggle.vue     # Theme switcher
+├── server/
+│   ├── api/
+│   │   └── chat-stream.post.ts # Main chat endpoint
+│   └── lib/
+│       ├── mcp/
+│       │   ├── ux-audit-tools.ts    # UX audit implementation
+│       │   ├── tools-registry.ts    # MCP tools router
+│       │   └── reasoning-loop.ts    # Tool execution logic
+│       └── prompts/
+│           └── thrivelens-prompts.ts # System prompts
+└── assets/
+    └── styles.css              # Design system
+```
+
+## Technologies
+
+- **Framework**: [Nuxt 3](https://nuxt.com/)
+- **AI**: OpenAI GPT-4V
+- **Browser Automation**: Playwright
+- **Protocol**: Model Context Protocol (MCP)
+- **Styling**: Tailwind CSS
