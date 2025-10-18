@@ -573,7 +573,7 @@ async function analyzeImageWithGPTV(
   const cleanBase64 = base64Image.replace(/^data:image\/\w+;base64,/, '')
 
   const response = await openai.chat.completions.create({
-    model: 'gpt-4.1-mini',
+    model: 'gpt-4o',
     max_tokens: 1500,
     temperature: 0.3,
     messages: [
