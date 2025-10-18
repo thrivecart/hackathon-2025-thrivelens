@@ -105,25 +105,20 @@ async function exportAuditPdf(args: { audit?: AuditReportInput, conversationHist
     
     // If no audit data provided directly, try to extract from conversation history
     if (!audit && conversationHistory) {
-      console.log('[PDF DEBUG] No direct audit data, searching conversation history...')
       for (const message of conversationHistory.slice().reverse()) {
         if (message.role === 'assistant' && message.content.includes('[FULL_AUDIT_DATA:')) {
           const match = message.content.match(/\[FULL_AUDIT_DATA: (.+?)\](?:\s|$)/)
           if (match) {
             try {
               audit = JSON.parse(match[1])
-              console.log('[PDF DEBUG] Found audit data in conversation history')
               break
             } catch (e) {
-              console.log('[PDF DEBUG] Failed to parse audit data from history:', e)
+              // Continue searching if JSON parse fails
             }
           }
         }
       }
     }
-    
-    console.log('[PDF DEBUG] === PDF Export Called ===')
-    console.log('[PDF DEBUG] Has audit data:', !!audit)
     
     if (!audit) {
       return {
@@ -131,48 +126,19 @@ async function exportAuditPdf(args: { audit?: AuditReportInput, conversationHist
         error: 'Missing audit data. Please run a UX audit first before generating a PDF.'
       }
     }
-    
-    console.log('[PDF DEBUG] Audit structure:')
-    console.log('[PDF DEBUG] - URL:', audit.metadata?.url)
-    console.log('[PDF DEBUG] - Combined Score:', audit.combinedScore)
-    console.log('[PDF DEBUG] - Combined Summary length:', audit.combinedSummary?.length)
-    console.log('[PDF DEBUG] - Device Analyses count:', audit.deviceAnalyses?.length)
-    
-    if (audit.deviceAnalyses) {
-      for (let i = 0; i < audit.deviceAnalyses.length; i++) {
-        const device = audit.deviceAnalyses[i]
-        console.log(`[PDF DEBUG] Device ${i + 1} (${device.deviceType}):`)  
-        console.log(`[PDF DEBUG] - Score: ${device.overallScore}`)
-        console.log(`[PDF DEBUG] - Summary length: ${device.summary?.length}`)
-        console.log(`[PDF DEBUG] - Recommendations count: ${device.recommendations?.length}`)
-        console.log(`[PDF DEBUG] - Category scores count: ${device.categoryScores?.length}`)
-        console.log(`[PDF DEBUG] - Category scores:`, device.categoryScores)
-      }
-    }
-    
-    // Validate required fields for multi-device structure
+
+    // Validate required audit structure
     if (!audit.metadata?.url) {
-      return {
-        ok: false,
-        error: 'audit.metadata.url is required'
-      }
+      return { ok: false, error: 'audit.metadata.url is required' }
     }
-
     if (typeof audit.combinedScore !== 'number') {
-      return {
-        ok: false,
-        error: 'audit.combinedScore must be a number (0-100)'
-      }
+      return { ok: false, error: 'audit.combinedScore must be a number (0-100)' }
     }
-
     if (!audit.deviceAnalyses || !Array.isArray(audit.deviceAnalyses) || audit.deviceAnalyses.length === 0) {
-      return {
-        ok: false,
-        error: 'audit.deviceAnalyses must be a non-empty array'
-      }
+      return { ok: false, error: 'audit.deviceAnalyses must be a non-empty array' }
     }
 
-    // Validate that this is real audit data, not AI-generated fake data
+    // Validate that this is real audit data, not fabricated
     if (audit.metadata.url.includes('example.com') || 
         audit.metadata.url === 'website-from-audit' ||
         audit.combinedSummary?.includes('Generic') || 
@@ -182,10 +148,9 @@ async function exportAuditPdf(args: { audit?: AuditReportInput, conversationHist
         error: 'No recent UX audit data found. Please run a website audit first, then request the PDF export.'
       }
     }
-    
-    // If audit data came from conversation history, update metadata URL
+
+    // Extract real URL from conversation history if needed
     if (audit.metadata.url === 'website-from-audit' && conversationHistory) {
-      // Try to extract the real URL from conversation history
       for (const message of conversationHistory.slice().reverse()) {
         if (message.role === 'user') {
           const urlMatch = message.content.match(/https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)/)
@@ -196,15 +161,6 @@ async function exportAuditPdf(args: { audit?: AuditReportInput, conversationHist
         }
       }
     }
-
-    // Validate required fields
-    if (!audit.metadata?.url) {
-      return {
-        ok: false,
-        error: 'audit.metadata.url is required'
-      }
-    }
-
 
     // Generate the PDF
     const result = await generateAuditReportPDF(audit)
