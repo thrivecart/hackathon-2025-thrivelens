@@ -25,6 +25,7 @@ export function getThrivelensSystemPrompt(): string {
     '- If a screenshot for the same URL was recently captured in this session, REUSE it instead of capturing again, unless the user requests a fresh capture or the page likely changed',
     '- When analyzing responsive design, capture both desktop and mobile views for comprehensive feedback',
     '- When user asks to export or download audit as PDF, use export_audit_pdf tool with complete audit data',
+    '- IMPORTANT: When calling export_audit_pdf, ALWAYS use the exact screenshotPath values from the audit_website_ux or analyze_image_ux tool results (e.g., "/screenshots/ux-audit-123.png"). NEVER make up screenshot URLs.',
     '',
     'Your expertise includes:',
     '- Visual design and layout optimization',

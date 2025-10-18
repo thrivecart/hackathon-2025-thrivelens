@@ -37,6 +37,8 @@ export interface AuditReportInput {
   overallScore: number        // 0-100
   summary: string
   categoryScores: CategoryScore[]
+  strengths?: string[]
+  weaknesses?: string[]
   recommendations: Recommendation[]
   screenshots: Screenshot[]
 }
@@ -83,22 +85,56 @@ async function loadLogoBase64(): Promise<string | null> {
   }
 }
 
-async function fetchImageToSquarePngBase64(url: string, size = 500): Promise<string | null> {
+async function fetchImageToSquarePngBase64(urlOrPath: string, size = 500): Promise<string | null> {
   try {
-    const res = await fetch(url, { method: 'GET' })
-    if (!res.ok) return null
-    const contentType = res.headers.get('content-type') || ''
-    if (!contentType.includes('image')) return null
+    console.log('[PDF] Fetching screenshot from:', urlOrPath)
+    let input: Buffer
 
-    const arrBuf = await res.arrayBuffer()
-    const input = Buffer.from(arrBuf)
+    // Check if it's a local file path (starts with / or ./)
+    if (urlOrPath.startsWith('/') || urlOrPath.startsWith('./')) {
+      // Local file path - read from public directory
+      const publicDir = path.resolve(process.cwd(), 'public')
+      const filePath = urlOrPath.startsWith('/') 
+        ? path.join(publicDir, urlOrPath)
+        : path.resolve(urlOrPath)
+      
+      console.log('[PDF] Reading local file:', filePath)
+      
+      if (!fs.existsSync(filePath)) {
+        console.error('[PDF] Local file not found:', filePath)
+        return null
+      }
+      
+      input = await fsp.readFile(filePath)
+      console.log('[PDF] Local file read successfully, size:', input.length)
+    } else {
+      // Remote URL - fetch via HTTP
+      const res = await fetch(urlOrPath, { method: 'GET' })
+      if (!res.ok) {
+        console.error('[PDF] Screenshot fetch failed:', res.status, res.statusText)
+        return null
+      }
+      const contentType = res.headers.get('content-type') || ''
+      console.log('[PDF] Screenshot content-type:', contentType)
+      if (!contentType.includes('image')) {
+        console.error('[PDF] Invalid content type for screenshot:', contentType)
+        return null
+      }
+
+      const arrBuf = await res.arrayBuffer()
+      input = Buffer.from(arrBuf)
+    }
+
+    // Resize and convert to square PNG
     const sq = await sharp(input)
       .resize(size, size, { fit: 'cover', position: 'centre' })
       .png({ quality: 90 })
       .toBuffer()
 
+    console.log('[PDF] Screenshot processed successfully, size:', sq.length)
     return `data:image/png;base64,${sq.toString('base64')}`
-  } catch {
+  } catch (err) {
+    console.error('[PDF] Screenshot processing error:', err)
     return null
   }
 }
@@ -241,8 +277,8 @@ export async function generateAuditReportPDF(audit: AuditReportInput): Promise<G
   // Metadata
   y = addKeyValue(doc, 'URL:', audit.metadata.url, margin, y, pageWidth, margin)
   y = addKeyValue(doc, 'Date:', new Date(audit.metadata.date || Date.now()).toLocaleString(), margin, y, pageWidth, margin)
-  if (audit.metadata.deviceType) y = addKeyValue(doc, 'Device:', audit.metadata.deviceType, margin, y, pageWidth, margin)
-  if (audit.metadata.pageType) y = addKeyValue(doc, 'Page Type:', audit.metadata.pageType, margin, y, pageWidth, margin)
+  if (audit.metadata.deviceType) y = addKeyValue(doc, 'Device:', capitalizeFirst(audit.metadata.deviceType), margin, y, pageWidth, margin)
+  if (audit.metadata.pageType) y = addKeyValue(doc, 'Page Type:', capitalizeFirst(audit.metadata.pageType), margin, y, pageWidth, margin)
 
   y = ensureSpace(doc, 24, y + 8, margin) + 10
 
@@ -304,9 +340,62 @@ export async function generateAuditReportPDF(audit: AuditReportInput): Promise<G
 
   y = ensureSpace(doc, 24, y + 8, margin)
 
+  // Strengths
+  if (audit.strengths && audit.strengths.length > 0) {
+    y = addSectionTitle(doc, 'Strengths', margin, y)
+    y += 10
+
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(11)
+    doc.setTextColor(COLORS.text)
+
+    for (const strength of audit.strengths) {
+      y = ensureSpace(doc, 20, y, margin)
+      
+      // Bullet point
+      doc.setFillColor(ACCENT)
+      doc.circle(margin + 3, y - 3, 2, 'F')
+      
+      // Text
+      const lines = doc.splitTextToSize(strength, pageWidth - margin * 2 - 15)
+      doc.text(lines, margin + 12, y)
+      y += lines.length * 14 + 4
+    }
+
+    y += 10
+  }
+
+  // Weaknesses
+  if (audit.weaknesses && audit.weaknesses.length > 0) {
+    y = ensureSpace(doc, 24, y, margin)
+    y = addSectionTitle(doc, 'Weaknesses', margin, y)
+    y += 10
+
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(11)
+    doc.setTextColor(COLORS.text)
+
+    for (const weakness of audit.weaknesses) {
+      y = ensureSpace(doc, 20, y, margin)
+      
+      // Bullet point
+      doc.setFillColor(COLORS.high)
+      doc.circle(margin + 3, y - 3, 2, 'F')
+      
+      // Text
+      const lines = doc.splitTextToSize(weakness, pageWidth - margin * 2 - 15)
+      doc.text(lines, margin + 12, y)
+      y += lines.length * 14 + 4
+    }
+
+    y += 10
+  }
+
+  y = ensureSpace(doc, 24, y, margin)
+
   // Recommendations
   y = addSectionTitle(doc, 'Recommendations', margin, y)
-  y += 15
+  y += 6
 
   const badgeColor = (p: 'high' | 'medium' | 'low') => {
     if (p === 'high') return COLORS.high

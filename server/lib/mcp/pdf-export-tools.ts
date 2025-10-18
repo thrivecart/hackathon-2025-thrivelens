@@ -38,6 +38,16 @@ export const PDF_EXPORT_TOOLS = [
                   required: ['name', 'score']
                 }
               },
+              strengths: {
+                type: 'array',
+                description: 'Array of key strengths identified in the audit',
+                items: { type: 'string' }
+              },
+              weaknesses: {
+                type: 'array',
+                description: 'Array of key weaknesses identified in the audit',
+                items: { type: 'string' }
+              },
               recommendations: {
                 type: 'array',
                 description: 'List of UX recommendations with priorities',
