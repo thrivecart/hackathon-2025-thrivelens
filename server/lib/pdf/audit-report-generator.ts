@@ -248,26 +248,25 @@ export async function generateAuditReportPDF(audit: AuditReportInput): Promise<G
 
   // Executive Summary
   y = addSectionTitle(doc, 'Executive Summary', margin, y)
-  y += 15
+  y += 20
 
   // Overall Score
   doc.setFont('helvetica', 'bold')
   doc.setTextColor(COLORS.text)
-  doc.setFontSize(16)
+  doc.setFontSize(12)
   doc.text(`Overall UX Score: ${Math.round(audit.overallScore)}/100`, margin, y)
-  y += 22
 
   // Score progress bar
   y += 10
   addProgressBar(doc, margin, y, 240, 12, audit.overallScore, ACCENT)
-  y += 30
+  y += 35
 
   // Summary paragraph
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(11)
   const summaryLines = doc.splitTextToSize(audit.summary || 'No summary provided.', pageWidth - margin * 2)
   doc.text(summaryLines, margin, y)
-  y += summaryLines.length * 14 + 10
+  y += summaryLines.length * 14 + 1
 
   // Category scores grid (2 columns)
   if (audit.categoryScores?.length) {
@@ -275,7 +274,7 @@ export async function generateAuditReportPDF(audit: AuditReportInput): Promise<G
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(12)
     doc.text('Category Scores', margin, y)
-    y += 16
+    y += 25
 
     const colWidth = (pageWidth - margin * 2 - 24) / 2
     const rowHeight = 40
@@ -293,13 +292,6 @@ export async function generateAuditReportPDF(audit: AuditReportInput): Promise<G
       doc.text(cs.name, x, y)
 
       addProgressBar(doc, x, y + 6, colWidth - 60, 10, cs.score, ACCENT)
-
-      doc.setFont('helvetica', 'normal')
-      doc.setTextColor(COLORS.muted)
-      doc.setFontSize(10)
-      const val = `${Math.round(cs.score)} / 100`
-      const metrics = doc.getTextDimensions(val)
-      doc.text(val, x + (colWidth - metrics.w), y + 17)
 
       if (col === 1) {
         y += rowHeight
