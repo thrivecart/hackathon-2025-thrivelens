@@ -8,7 +8,7 @@
   --text: #e7eaf0;
   --muted: #a7afc0;
   --border: #262a34;
-  --accent: #4cc38a; /* subtle green */
+  --accent: #28c8c6; /* subtle green */
   --accent-2: #3e7bf6; /* subtle blue */
 }
 :root.light {
@@ -17,7 +17,7 @@
   --text: #101216;
   --muted: #5a6577;
   --border: #e6e9ef;
-  --accent: #2fb67d;
+  --accent: #28c8c6;
   --accent-2: #2a6ff0;
 }
 * { box-sizing: border-box; }

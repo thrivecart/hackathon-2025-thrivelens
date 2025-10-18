@@ -15,8 +15,8 @@ export default {
       },
       fontFamily: {
         sans: [
+          'Manrope',
           'ui-sans-serif',
-          'Inter',
           'system-ui',
           '-apple-system',
           'Segoe UI',

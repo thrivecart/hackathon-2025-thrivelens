@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@200..800&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -13,8 +15,8 @@
   --text: #e7eaf0;
   --muted: #a7afc0;
   --border: #262a34;
-  --accent: #4cc38a;
-  --accent-2: #3e7bf6;
+  --accent: #00C8C8;
+  --accent-2: #00a3a3;
 }
 
 :root.light {
@@ -23,8 +25,8 @@
   --text: #101216;
   --muted: #5a6577;
   --border: #e6e9ef;
-  --accent: #2fb67d;
-  --accent-2: #2a6ff0;
+  --accent: #00C8C8;
+  --accent-2: #00a3a3;
 }
 
 @layer base {
@@ -33,7 +35,8 @@
   }
 
   body {
-    @apply bg-bg text-text font-sans;
+    font-family: 'Manrope', system-ui, -apple-system, sans-serif;
+    @apply bg-bg text-text;
     margin: 0;
   }
 }

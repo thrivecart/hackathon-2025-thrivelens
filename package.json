@@ -10,6 +10,7 @@
     "postinstall": "nuxt prepare"
   },
   "dependencies": {
+    "@iconify/vue": "^5.0.0",
     "@modelcontextprotocol/sdk": "^1.20.0",
     "@types/node": "^24.7.2",
     "nuxt": "^4.1.3",
