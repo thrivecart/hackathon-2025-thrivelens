@@ -4,7 +4,7 @@ import OpenAI from 'openai'
 import { mkdir } from 'fs/promises'
 import { join } from 'path'
 import { existsSync } from 'fs'
-import { getUXRefinementPrompt } from '../prompts/thrivelens-prompts'
+import { getUXRefinementPrompt, getUXAnalysisPrompt } from '../prompts/thrivelens-prompts'
 
 // Simple in-memory caches (per server process)
 const SIX_HOURS = 6 * 60 * 60 * 1000
@@ -119,83 +119,6 @@ const DEVICE_PRESETS = {
   tablet: { width: 768, height: 1024 }
 }
 
-// UX audit prompt templates
-export function getPrompt(device:string, pageType: string, focusAreas: string[]) : string {
-  return  `
-      You are a senior UX and conversion optimization expert specializing in e-commerce and digital experiences.  
-      Analyze the provided webpage screenshot from a ${device} perspective.  
-      The page type is: ${pageType || 'general'}.
-      
-      Your goal is to objectively evaluate the page's **user experience, clarity, and conversion effectiveness**, 
-      focusing on checkout flows, sales pages, landing pages, and e-commerce experiences.
-      
-      ---
-      ### Focus Areas:
-      1. **Visual Design & Layout**
-         - Consistency, spacing, contrast, visual hierarchy, readability.
-      2. **Information Architecture**
-         - Logical grouping, scanning patterns, and clarity of key messages.
-      3. **Conversion Optimization**
-         - Call-to-action prominence, form usability, pricing clarity, trust signals, and urgency elements.
-      4. **Responsiveness & Accessibility**
-         - Mobile friendliness, tap targets, legibility, keyboard/screen reader readiness.
-      5. **Trust & Credibility**
-         - Social proof, reviews, payment confidence, policy visibility.
-      6. **Performance & Perceived Speed**
-         - Indicators of loading state, lazy loading, image optimization.
-      7. **User Flow**
-         - Ease of progression toward primary goal (purchase, signup, etc.).
-      ---
-      
-      ### Requirements:
-      - Be **objective** and **data-driven**, not purely aesthetic.
-      - Identify **strengths** and **weaknesses**.
-      - Every **recommendation** must point to at least one identifiable on-screen element  (e.g., “green CTA button in hero section,” “pricing table header text,” “email field placeholder,” etc.).
-      - Provide **clear numeric scores (1–100)** for:
-        - Overall UX
-        - Visual design
-        - Conversion readiness
-        - Mobile optimization (if applicable)
-        - Focus areas: ${JSON.stringify(focusAreas || [])}
-      - Suggest **actionable, prioritized recommendations** to improve conversions and UX.
-      - It is important if you can point a specific element (a button, a header, a text etc,.) on the page that needs improvement. This will make the analysis more precise and objective.
-      
-      Return your analysis strictly in **valid JSON** format as follows:
-      
-      {
-        "overallScore": 85/100 (100 if perfect),
-        "categoryScores": {
-          "visualDesign": 80,
-          "conversionReadiness": 90,
-          "mobileOptimization": 75,
-          "trustAndCredibility": 88,
-          "accessibility": 70,
-        },
-        "summary": "Brief executive summary (2–3 sentences).",
-        "strengths": ["List of key positives"],
-        "weaknesses": ["List of key negatives"],
-        "recommendations": [
-          {
-            "title": "Action title",
-            "description": "Concise explanation of why and how to improve it",
-            "priority": "high|medium|low",
-            "expectedImpact": "Description of potential impact on conversion rate"
-          }
-        ],
-        "device": "${device}",
-        "pageType": "${pageType}",
-        "focusAreas": ${JSON.stringify(focusAreas || [])}
-      }
-      
-      ### Guidance
-      While high-level feedback is acceptable, **prioritize precision** — e.g.  
-      DO - "The green CTA button in the hero section has low contrast against the white background, making it less noticeable."
-      DONT - "Make buttons stand out more"
-      
-      If two screenshots (desktop & mobile) are provided, highlight **differences** in usability and consistency.
-      
-      `
-}
 
 // Main tool call handler
 export async function callUXAuditTool(toolName: string, args: any): Promise<any> {
@@ -571,7 +494,7 @@ async function analyzeImageWithGPTV(
   const openai = new OpenAI({ apiKey })
   
   // Build analysis prompt
-  const prompt = getPrompt(device, pageType, focusAreas)
+  const prompt = getUXAnalysisPrompt(device, pageType, focusAreas)
   
   // Ensure we have clean base64 without any prefix
   const cleanBase64 = base64Image.replace(/^data:image\/\w+;base64,/, '')
@@ -641,9 +564,6 @@ async function analyzeImageWithGPTV(
     }
   }
 
-  // Uncomment the return below to disable dual-pass analysis
-  // return rawAnalysis
-
   // Store raw vision output for debugging/comparison
   const cacheKey = `${device}|${pageType}|${JSON.stringify(focusAreas)}`
   RAW_VISION_CACHE.set(cacheKey, rawAnalysis)
@@ -653,9 +573,7 @@ async function analyzeImageWithGPTV(
   try {
     const refinementResponse = await openai.chat.completions.create({
       model: 'gpt-4.1-mini',
-      temperature: 0,      // eliminate randomness
-      top_p: 1,            // deterministic sampling
-      seed: 42,            // ensures reproducibility if supported
+      temperature: 0.2,
       response_format: { type: 'json_object' },
       messages: [
         {
