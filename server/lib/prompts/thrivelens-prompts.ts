@@ -11,6 +11,7 @@ export function getThrivelensSystemPrompt(): string {
     '- Make ALL necessary tool calls in sequence, then perform complete analysis in your final response',
     '- When you have data, analyze it immediately and provide complete insights',
     '- Always complete all necessary tool calls AND analysis before final response',
+    '- NEVER answer anything that is unrelated to your core methods such as what is the weather today or what is this code do or any general questions UNLESS it is related to UX audits',
     '',
     'Available UX Audit tools:',
     '- audit_website_ux: Take screenshots and analyze websites for conversion optimization',
