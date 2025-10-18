@@ -75,6 +75,34 @@ export const UX_AUDIT_TOOLS = [
         required: ['url']
       }
     }
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'analyze_image_ux',
+      description: 'Analyze an uploaded image/screenshot for UX and conversion optimization. Use when the user provides an image. Note: imageData will be automatically provided from the uploaded image.',
+      parameters: {
+        type: 'object',
+        properties: {
+          pageType: {
+            type: 'string',
+            enum: ['checkout', 'landing', 'product', 'homepage', 'signup', 'general'],
+            description: 'Type of page being audited to provide targeted feedback. Default: general'
+          },
+          device: {
+            type: 'string',
+            enum: ['desktop', 'mobile', 'tablet'],
+            description: 'Device type for responsive analysis. Default: desktop'
+          },
+          focusAreas: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Specific areas to focus on (e.g., "call-to-action buttons", "form design", "trust signals")'
+          }
+        },
+        required: []
+      }
+    }
   }
 ]
 
@@ -178,6 +206,8 @@ export async function callUXAuditTool(toolName: string, args: any): Promise<any>
   switch (toolName) {
     case 'audit_website_ux':
       return await auditWebsiteUX(args)
+    case 'analyze_image_ux':
+      return await analyzeImageUX(args)
     default:
       throw new Error(`Unknown UX audit tool: ${toolName}`)
   }
@@ -308,6 +338,109 @@ async function auditWebsiteUX(args: {
   }
 }
 
+// Image UX audit implementation (for uploaded images)
+async function analyzeImageUX(args: {
+  imageData: string
+  pageType?: 'checkout' | 'landing' | 'product' | 'homepage' | 'signup' | 'general'
+  device?: 'desktop' | 'mobile' | 'tablet'
+  focusAreas?: string[]
+}): Promise<any> {
+  const { 
+    imageData,
+    pageType = 'general', 
+    device = 'desktop',
+    focusAreas = []
+  } = args
+
+  if (!imageData) {
+    throw new Error('Image data is required')
+  }
+
+  const cfg = useRuntimeConfig()
+  const apiKey = cfg.openai?.apiKey as string | undefined
+  
+  if (!apiKey) {
+    throw new Error('OpenAI API key is not configured')
+  }
+
+  try {
+    // Detect MIME type from data URI
+    let mimeType = 'image/png'
+    if (imageData.startsWith('data:')) {
+      const mimeMatch = imageData.match(/^data:([^;]+);/)
+      if (mimeMatch) {
+        mimeType = mimeMatch[1]
+      }
+    }
+    
+    // Save uploaded image for display
+    const screenshotsDir = join(process.cwd(), 'public', 'screenshots')
+    if (!existsSync(screenshotsDir)) {
+      await mkdir(screenshotsDir, { recursive: true })
+    }
+    
+    // Determine file extension from MIME type
+    const ext = mimeType.split('/')[1] || 'png'
+    const timestamp = Date.now()
+    const filename = `uploaded-${timestamp}-${device}.${ext}`
+    const screenshotPath = `/screenshots/${filename}`
+    const fullPath = join(screenshotsDir, filename)
+    
+    // Remove data URI prefix if present and clean base64 data
+    let base64Data = imageData.trim()
+    
+    // Remove data URL prefix (e.g., data:image/png;base64,)
+    if (base64Data.startsWith('data:')) {
+      const base64Index = base64Data.indexOf('base64,')
+      if (base64Index !== -1) {
+        base64Data = base64Data.substring(base64Index + 7) // Skip 'base64,'
+      }
+    }
+    
+    // Remove any whitespace or newlines
+    base64Data = base64Data.replace(/\s/g, '')
+    
+    // Basic validation: check if it looks like base64
+    // Allow A-Z, a-z, 0-9, +, /, and = for padding
+    // Don't validate the entire string with regex (too slow for large images)
+    if (!base64Data || base64Data.length < 100) {
+      throw new Error('Image data appears to be empty or too short')
+    }
+    
+    // Check first few characters are valid base64
+    const sample = base64Data.substring(0, 100)
+    if (!/^[A-Za-z0-9+/]+/.test(sample)) {
+      throw new Error('Invalid base64 image data format')
+    }
+    
+    // Save image file
+    const fs = await import('fs/promises')
+    await fs.writeFile(fullPath, Buffer.from(base64Data, 'base64'))
+    
+    // Analyze with GPT-4V using the core reusable function
+    const analysis = await analyzeImageWithGPTV(base64Data, device, pageType, focusAreas, apiKey, mimeType)
+    
+    // Normalize analysis
+    const normalizedAnalysis = normalizeUxAnalysis(analysis)
+
+    return {
+      success: true,
+      pageType,
+      device,
+      screenshotPath,
+      analysis: normalizedAnalysis,
+      recommendations: Array.isArray(normalizedAnalysis?.recommendations) ? normalizedAnalysis.recommendations : [],
+      score: normalizedAnalysis?.overallScore ?? normalizedAnalysis?.score ?? null,
+      focusAreas,
+      message: `UX audit completed for uploaded ${pageType} image (${device})`
+    }
+
+  } catch (error: any) {
+    console.error('Image UX audit error:', error)
+    throw new Error(error.message || 'Failed to analyze uploaded image')
+  }
+}
+
 // Screenshot capture function
 async function captureScreenshot(
   url: string, 
@@ -430,23 +563,22 @@ async function captureScreenshot(
   }
 }
 
-// GPT-4V analysis function
-async function analyzeScreenshotWithGPTV(
-  screenshotPath: string,
+// Core UX analysis function (DRY - reusable for both screenshots and uploaded images)
+async function analyzeImageWithGPTV(
+  base64Image: string,
   device: string,
   pageType: string,
   focusAreas: string[],
-  apiKey: string
+  apiKey: string,
+  mimeType: string = 'image/png'
 ): Promise<any> {
   const openai = new OpenAI({ apiKey })
   
-  // Read screenshot file
-  const fs = await import('fs/promises')
-  const screenshotBuffer = await fs.readFile(join(process.cwd(), 'public', screenshotPath))
-  const base64Image = screenshotBuffer.toString('base64')
-  
   // Build analysis prompt
-  let prompt = getPrompt(device, pageType, focusAreas)
+  const prompt = getPrompt(device, pageType, focusAreas)
+  
+  // Ensure we have clean base64 without any prefix
+  const cleanBase64 = base64Image.replace(/^data:image\/\w+;base64,/, '')
 
   const response = await openai.chat.completions.create({
     model: 'gpt-4.1-mini',
@@ -464,7 +596,7 @@ async function analyzeScreenshotWithGPTV(
           {
             type: 'image_url',
             image_url: {
-              url: `data:image/png;base64,${base64Image}`,
+              url: `data:${mimeType};base64,${cleanBase64}`,
               detail: 'high'
             }
           }
@@ -496,6 +628,23 @@ async function analyzeScreenshotWithGPTV(
       mobileReadiness: 'Analysis provided in summary'
     }
   }
+}
+
+// GPT-4V analysis function for screenshots (wrapper for DRY)
+async function analyzeScreenshotWithGPTV(
+  screenshotPath: string,
+  device: string,
+  pageType: string,
+  focusAreas: string[],
+  apiKey: string
+): Promise<any> {
+  // Read screenshot file
+  const fs = await import('fs/promises')
+  const screenshotBuffer = await fs.readFile(join(process.cwd(), 'public', screenshotPath))
+  const base64Image = screenshotBuffer.toString('base64')
+  
+  // Use the core analysis function
+  return await analyzeImageWithGPTV(base64Image, device, pageType, focusAreas, apiKey)
 }
 
 // URL validation helper

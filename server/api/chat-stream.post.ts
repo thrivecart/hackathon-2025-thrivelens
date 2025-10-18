@@ -11,12 +11,17 @@ import { ALL_TOOL_DEFINITIONS, routeToolCall } from '../lib/mcp/tools-registry'
 import { runReasoningLoop } from '../lib/mcp/reasoning-loop'
 
 export default defineEventHandler(async (event) => {
-  const body = await readBody<{ query: string; history?: Array<{role: string, content: string}> }>(event)
+  const body = await readBody<{ 
+    query: string; 
+    history?: Array<{role: string, content: string}>
+    imageData?: string
+  }>(event)
   const query = (body?.query || '').trim()
   const history = body?.history || []
+  const imageData = body?.imageData
 
-  if (!query) {
-    return { messages: [{ type: 'error', content: 'Please ask a question.' }] }
+  if (!query && !imageData) {
+    return { messages: [{ type: 'error', content: 'Please ask a question or provide an image.' }] }
   }
 
   const cfg = useRuntimeConfig()
@@ -33,10 +38,17 @@ export default defineEventHandler(async (event) => {
     const systemPrompt = getThrivelensSystemPrompt()
 
     // Build conversation with history
+    let userMessage = query
+    
+    // If image is provided, add context to the query
+    if (imageData) {
+      userMessage = query ? `${query} [User has provided an image for analysis]` : 'Analyze the provided image for UX and conversion optimization.'
+    }
+    
     const conversationMessages = [
       { role: 'system', content: systemPrompt },
       ...history,
-      { role: 'user', content: query }
+      { role: 'user', content: userMessage }
     ]
 
     // Step 1: Get initial AI response with potential tool calls
@@ -54,16 +66,28 @@ export default defineEventHandler(async (event) => {
       return { messages: [{ type: 'error', content: 'Failed to get AI response' }] }
     }
 
+    // Create a custom router that injects imageData if needed
+    const customRouter = async (toolName: string, args: any) => {
+      // CRITICAL: OpenAI truncates large strings in function args
+      // If calling analyze_image_ux, ALWAYS inject the full imageData from context
+      if (toolName === 'analyze_image_ux' && imageData) {
+        // Replace any truncated imageData with the full version
+        args = { ...args, imageData }
+      }
+      
+      return await routeToolCall(toolName, args)
+    }
+    
     // Start reasoning loop with streaming updates
     const finalContent = await runReasoningLoop(
       openai,
       systemPrompt,
       history,
-      query,
+      userMessage,
       message,
       messages,
       ALL_TOOL_DEFINITIONS,
-      routeToolCall,
+      customRouter,
       12  // Max iterations
     )
     

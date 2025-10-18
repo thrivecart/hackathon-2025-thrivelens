@@ -5,10 +5,6 @@ export default defineNuxtConfig({
   css: ['~/assets/styles.css'],
   modules: ['@nuxtjs/tailwindcss'],
   runtimeConfig: {
-    thrivecart: {
-      apiKey: process.env.NUXT_THRIVECART_API_KEY,
-      baseUrl: process.env.NUXT_THRIVECART_BASE_URL || 'https://thrivecart.com'
-    },
     openai: {
       apiKey: process.env.NUXT_OPENAI_API_KEY
     },

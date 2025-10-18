@@ -70,10 +70,10 @@ export async function runReasoningLoop(
         })
         
         // Handle UX audit results specially
-        if (name === 'audit_website_ux' && result.success) {
+        if ((name === 'audit_website_ux' || name === 'analyze_image_ux') && result.success) {
           messages.push({ 
             type: 'progress', 
-            content: `✓ UX audit completed - Screenshot captured and analyzed`,
+            content: `✓ UX audit completed - ${name === 'analyze_image_ux' ? 'Image' : 'Screenshot'} analyzed`,
             status: 'success',
             screenshotUrl: result.screenshotPath,
             uxAnalysis: result.analysis

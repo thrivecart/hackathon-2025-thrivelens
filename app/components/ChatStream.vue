@@ -71,13 +71,60 @@
     </div>
 
     <div class="sticky bottom-0 left-0 right-0 pt-2" style="background: linear-gradient(180deg, rgba(0,0,0,0) 0%, var(--bg) 40%)">
+      <!-- Image preview -->
+      <div v-if="imagePreviewUrl" class="mb-2 relative inline-block">
+        <img :src="imagePreviewUrl" alt="Preview" class="max-w-[200px] max-h-[200px] rounded-lg border border-border" />
+        <button 
+          @click="removeImage" 
+          class="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center hover:bg-red-600 transition-colors"
+          aria-label="Remove image"
+        >×</button>
+      </div>
+      
       <div class="bg-bg-soft border border-border rounded-composer py-2 px-5 flex gap-2 items-end">
-        <textarea v-model="prompt" class="flex-1 resize-none bg-transparent text-text border-0 outline-none disabled:opacity-60 disabled:cursor-not-allowed" placeholder="Enter your prompt here" rows="1" style="min-height: 40px; max-height: 160px; overflow: auto;" @keydown.enter.exact.prevent="run" :disabled="loading"></textarea>
-        <div class="flex gap-3 items-center">
-          <button class="bg-accent text-gray-900 border border-transparent px-3.5 py-2.5 rounded-button font-semibold cursor-pointer transition-colors disabled:opacity-60 disabled:cursor-not-allowed" @click="run" :disabled="loading">{{ loading ? 'Processing...' : 'Send' }}</button>
+        <!-- Hidden file input -->
+        <input 
+          ref="fileInputRef"
+          type="file" 
+          accept="image/*" 
+          @change="handleFileSelect" 
+          class="hidden" 
+        />
+        
+        <textarea 
+          v-model="prompt" 
+          class="flex-1 resize-none bg-transparent text-text border-0 outline-none disabled:opacity-60 disabled:cursor-not-allowed" 
+          placeholder="Enter your prompt here or paste an image..." 
+          rows="1" 
+          style="min-height: 40px; max-height: 160px; overflow: auto;" 
+          @keydown.enter.exact.prevent="run" 
+          @paste="handlePaste"
+          :disabled="loading"
+        ></textarea>
+        
+        <div class="flex gap-2 items-center">
+          <!-- Image upload button -->
+          <button 
+            @click="triggerFileInput" 
+            class="p-2.5 text-muted hover:text-text transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+            :disabled="loading"
+            aria-label="Upload image"
+            title="Upload image"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Zm10.5-11.25h.008v.008h-.008V8.25Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
+            </svg>
+          </button>
+          
+          <!-- Send button -->
+          <button 
+            class="bg-accent text-gray-900 border border-transparent px-3.5 py-2.5 rounded-button font-semibold cursor-pointer transition-colors disabled:opacity-60 disabled:cursor-not-allowed" 
+            @click="run" 
+            :disabled="loading"
+          >{{ loading ? 'Processing...' : 'Send' }}</button>
         </div>
       </div>
-      <div class="text-xs text-center text-muted mt-1.5 py-3">ThriveLens can make mistake.</div>
+      <div class="text-xs text-center text-muted mt-1.5 py-3">Thrivelens can make mistake.</div>
     </div>
   </div>
 </template>
@@ -112,6 +159,9 @@ interface Message {
 
 const prompt = ref('')
 const loading = ref(false)
+const uploadedImage = ref<string | null>(null)
+const imagePreviewUrl = ref<string | null>(null)
+const fileInputRef = ref<HTMLInputElement | null>(null)
 const messages = ref<Message[]>([
   {
     role: 'assistant',
@@ -145,12 +195,73 @@ function addUserMessage(content: string) {
   messages.value.push({ role: 'user', content })
 }
 
+// Handle file upload
+function handleFileSelect(event: Event) {
+  const target = event.target as HTMLInputElement
+  const file = target.files?.[0]
+  if (file && file.type.startsWith('image/')) {
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      const result = e.target?.result as string
+      uploadedImage.value = result
+      imagePreviewUrl.value = result
+    }
+    reader.readAsDataURL(file)
+  }
+}
+
+// Handle paste from clipboard
+function handlePaste(event: ClipboardEvent) {
+  const items = event.clipboardData?.items
+  if (!items) return
+  
+  for (const item of items) {
+    if (item.type.startsWith('image/')) {
+      event.preventDefault()
+      const file = item.getAsFile()
+      if (file) {
+        const reader = new FileReader()
+        reader.onload = (e) => {
+          const result = e.target?.result as string
+          uploadedImage.value = result
+          imagePreviewUrl.value = result
+        }
+        reader.readAsDataURL(file)
+      }
+      break
+    }
+  }
+}
+
+// Remove uploaded image
+function removeImage() {
+  uploadedImage.value = null
+  imagePreviewUrl.value = null
+  if (fileInputRef.value) {
+    fileInputRef.value.value = ''
+  }
+}
+
+// Trigger file input
+function triggerFileInput() {
+  fileInputRef.value?.click()
+}
+
 async function run() {
   const q = prompt.value.trim()
-  if (!q || loading.value) return
+  const hasImage = !!uploadedImage.value
+  
+  if (!q && !hasImage) return
+  if (loading.value) return
 
-  addUserMessage(q)
+  // Add user message with image indicator if present
+  const userMsg = hasImage ? (q || 'Analyze this image') + ' 📷' : q
+  addUserMessage(userMsg)
+  
+  const imageToSend = uploadedImage.value
+  
   prompt.value = ''
+  removeImage() // Clear image after sending
   loading.value = true
   scrollToBottom()
 
@@ -164,15 +275,22 @@ async function run() {
           content: m.content
         }))
 
+    const requestBody: any = {
+      query: q || 'Analyze the provided image',
+      history
+    }
+    
+    // Add image data if present
+    if (imageToSend) {
+      requestBody.imageData = imageToSend
+    }
+
     const response = await fetch('/api/chat-stream', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({
-        query: q,
-        history
-      })
+      body: JSON.stringify(requestBody)
     })
 
     if (!response.ok) {
