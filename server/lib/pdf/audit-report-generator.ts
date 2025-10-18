@@ -24,14 +24,21 @@ export interface Recommendation {
   priority: 'high' | 'medium' | 'low'
 }
 
-export interface AuditReportInput {
-  metadata: AuditMetadata
-  overallScore: number        // 0-100
+export interface DeviceAnalysis {
+  deviceType: DeviceType
+  overallScore: number
   summary: string
   categoryScores?: CategoryScore[]
   strengths?: string[]
   weaknesses?: string[]
   recommendations: Recommendation[]
+}
+
+export interface AuditReportInput {
+  metadata: AuditMetadata
+  deviceAnalyses: DeviceAnalysis[]
+  combinedScore: number       // Overall score across all devices
+  combinedSummary: string     // Executive summary covering all devices
 }
 
 export interface GeneratePdfResult {
@@ -224,115 +231,93 @@ export async function generateAuditReportPDF(audit: AuditReportInput): Promise<G
   y = addSectionTitle(doc, 'Executive Summary', margin, y)
   y += 20
 
-  // Overall Score
+  // Combined Score
   doc.setFont('helvetica', 'bold')
   doc.setTextColor(COLORS.text)
   doc.setFontSize(12)
-  doc.text(`Overall UX Score: ${Math.round(audit.overallScore)}/100`, margin, y)
+  doc.text(`Overall UX Score: ${Math.round(audit.combinedScore)}/100`, margin, y)
 
   // Score progress bar
   y += 10
-  addProgressBar(doc, margin, y, 240, 12, audit.overallScore, ACCENT)
+  addProgressBar(doc, margin, y, 240, 12, audit.combinedScore, ACCENT)
   y += 35
 
-  // Summary paragraph
+  // Combined summary paragraph
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(11)
-  const summaryLines = doc.splitTextToSize(audit.summary || 'No summary provided.', pageWidth - margin * 2)
+  const summaryLines = doc.splitTextToSize(audit.combinedSummary || 'No summary provided.', pageWidth - margin * 2)
   doc.text(summaryLines, margin, y)
   y += summaryLines.length * 14 + 15
 
-  // Category scores grid (2 columns)
-  if (audit.categoryScores?.length) {
-    y = ensureSpace(doc, 24, y, margin)
+  // Device-specific analyses
+  for (const deviceAnalysis of audit.deviceAnalyses) {
+    y = ensureSpace(doc, 40, y + 8, margin)
+    
+    // Device section header
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(14)
+    doc.setTextColor(COLORS.text)
+    doc.text(`${capitalizeFirst(deviceAnalysis.deviceType)} Analysis`, margin, y)
+    y += 20
+    
+    // Device score
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(12)
-    doc.text('Category Scores', margin, y)
+    doc.text(`${capitalizeFirst(deviceAnalysis.deviceType)} Score: ${Math.round(deviceAnalysis.overallScore)}/100`, margin, y)
+    y += 10
+    addProgressBar(doc, margin, y, 200, 10, deviceAnalysis.overallScore, ACCENT)
     y += 25
-
-    const colWidth = (pageWidth - margin * 2 - 24) / 2
-    const rowHeight = 40
-    for (let i = 0; i < audit.categoryScores.length; i++) {
-      const col = i % 2
-      if (col === 0) {
-        y = ensureSpace(doc, rowHeight + 12, y, margin)
-      }
-      const x = margin + col * (colWidth + 24)
-
-      const cs = audit.categoryScores[i]
+    
+    // Device summary
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(11)
+    const deviceSummaryLines = doc.splitTextToSize(deviceAnalysis.summary || 'No summary provided.', pageWidth - margin * 2)
+    doc.text(deviceSummaryLines, margin, y)
+    y += deviceSummaryLines.length * 14 + 15
+    
+    // Category scores for this device (if available)
+    if (deviceAnalysis.categoryScores?.length) {
+      y = ensureSpace(doc, 24, y, margin)
       doc.setFont('helvetica', 'bold')
-      doc.setTextColor(COLORS.text)
-      doc.setFontSize(11)
-      doc.text(cs.name, x, y)
+      doc.setFontSize(12)
+      doc.text(`${capitalizeFirst(deviceAnalysis.deviceType)} Category Scores`, margin, y)
+      y += 20
 
-      addProgressBar(doc, x, y + 6, colWidth - 60, 10, cs.score, ACCENT)
+      const colWidth = (pageWidth - margin * 2 - 24) / 2
+      const rowHeight = 35
+      for (let i = 0; i < deviceAnalysis.categoryScores.length; i++) {
+        const col = i % 2
+        if (col === 0) {
+          y = ensureSpace(doc, rowHeight + 12, y, margin)
+        }
+        const x = margin + col * (colWidth + 24)
 
-      if (col === 1) {
+        const cs = deviceAnalysis.categoryScores[i]
+        doc.setFont('helvetica', 'bold')
+        doc.setTextColor(COLORS.text)
+        doc.setFontSize(10)
+        doc.text(cs.name, x, y)
+
+        addProgressBar(doc, x, y + 6, colWidth - 60, 8, cs.score, ACCENT)
+
+        if (col === 1) {
+          y += rowHeight
+        }
+      }
+      if (deviceAnalysis.categoryScores.length % 2 === 1) {
         y += rowHeight
       }
-    }
-    if (audit.categoryScores.length % 2 === 1) {
-      y += rowHeight
     }
   }
 
   y = ensureSpace(doc, 24, y + 8, margin)
 
-  // Strengths
-  if (audit.strengths && audit.strengths.length > 0) {
-    y = addSectionTitle(doc, 'Strengths', margin, y)
-    y += 10
-
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(11)
-    doc.setTextColor(COLORS.text)
-
-    for (const strength of audit.strengths) {
-      y = ensureSpace(doc, 20, y, margin)
-      
-      // Bullet point
-      doc.setFillColor(ACCENT)
-      doc.circle(margin + 3, y - 3, 2, 'F')
-      
-      // Text
-      const lines = doc.splitTextToSize(strength, pageWidth - margin * 2 - 15)
-      doc.text(lines, margin + 12, y)
-      y += lines.length * 14 + 4
-    }
-
-    y += 10
-  }
-
-  // Weaknesses
-  if (audit.weaknesses && audit.weaknesses.length > 0) {
-    y = ensureSpace(doc, 24, y, margin)
-    y = addSectionTitle(doc, 'Weaknesses', margin, y)
-    y += 10
-
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(11)
-    doc.setTextColor(COLORS.text)
-
-    for (const weakness of audit.weaknesses) {
-      y = ensureSpace(doc, 20, y, margin)
-      
-      // Bullet point
-      doc.setFillColor(COLORS.high)
-      doc.circle(margin + 3, y - 3, 2, 'F')
-      
-      // Text
-      const lines = doc.splitTextToSize(weakness, pageWidth - margin * 2 - 15)
-      doc.text(lines, margin + 12, y)
-      y += lines.length * 14 + 4
-    }
-
-    y += 10
-  }
 
   y = ensureSpace(doc, 24, y, margin)
 
-  // Recommendations
-  y = addSectionTitle(doc, 'Recommendations', margin, y)
+  // All Recommendations (from all devices)
+  y = ensureSpace(doc, 24, y + 8, margin)
+  y = addSectionTitle(doc, 'All Recommendations', margin, y)
   y += 6
 
   const badgeColor = (p: 'high' | 'medium' | 'low') => {
@@ -341,18 +326,30 @@ export async function generateAuditReportPDF(audit: AuditReportInput): Promise<G
     return COLORS.low
   }
 
-  for (const rec of (audit.recommendations || [])) {
+  // Collect all recommendations from all devices
+  const allRecommendations = []
+  for (const deviceAnalysis of audit.deviceAnalyses) {
+    for (const rec of deviceAnalysis.recommendations) {
+      allRecommendations.push({
+        ...rec,
+        deviceType: deviceAnalysis.deviceType
+      })
+    }
+  }
+
+  for (const rec of allRecommendations) {
     y = ensureSpace(doc, 90, y + 6, margin)
 
     // Card
     const cardX = margin
     const cardW = pageWidth - margin * 2
 
-    // Title
+    // Title with device indicator
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(12)
     doc.setTextColor(COLORS.text)
-    doc.text(rec.title, cardX, y)
+    const titleText = `[${rec.deviceType.toUpperCase()}] ${rec.title}`
+    doc.text(titleText, cardX, y)
 
     // Priority badge
     const priority = normalizePriority(rec.priority)
@@ -383,7 +380,6 @@ export async function generateAuditReportPDF(audit: AuditReportInput): Promise<G
     doc.setFont('helvetica', 'normal')
     doc.setTextColor(COLORS.text)
     doc.setFontSize(11)
-    // Calculate remaining width after the label (96px offset + some padding)
     const impactLines = doc.splitTextToSize(rec.expectedImpact || 'Not specified.', cardW - 100)
     doc.text(impactLines, cardX + 100, y)
     y += impactLines.length * 14 + 10

@@ -60,8 +60,16 @@ export async function runReasoningLoop(
       })
       
       try {
+        // Parse tool arguments
+        const parsedArgs = JSON.parse(args)
+        
+        // For PDF export, inject conversation history
+        if (name === 'export_audit_pdf') {
+          parsedArgs.conversationHistory = history
+        }
+        
         // Use the provided routing function to call the appropriate tool
-        const result = await routeToolCall(name, JSON.parse(args))
+        const result = await routeToolCall(name, parsedArgs)
         
         toolResults.push({
           tool_call_id: toolCall.id,

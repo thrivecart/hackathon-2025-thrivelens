@@ -601,16 +601,16 @@ async function analyzeImageWithGPTV(
     const refinedContent = refinementResponse.choices[0]?.message?.content
     if (!refinedContent) {
       console.warn('⚠️  No refinement received, returning raw vision analysis')
-      return rawAnalysis
+      return normalizeUxAnalysis(rawAnalysis)
     }
 
     const refinedAnalysis = JSON.parse(refinedContent)
     console.log('✅ Dual-pass analysis complete')
-    return refinedAnalysis
+    return normalizeUxAnalysis(refinedAnalysis)
 
   } catch (error: any) {
     console.warn('⚠️  Refinement pass failed, falling back to raw vision analysis:', error.message)
-    return rawAnalysis
+    return normalizeUxAnalysis(rawAnalysis)
   }
 }
 
@@ -695,6 +695,15 @@ function normalizeUxAnalysis(analysis: any): any {
       if (embedded.summary) analysis.summary = embedded.summary
     }
   }
+  
+  // Convert categoryScores from object to array format for PDF compatibility
+  if (analysis.categoryScores && typeof analysis.categoryScores === 'object' && !Array.isArray(analysis.categoryScores)) {
+    analysis.categoryScores = Object.entries(analysis.categoryScores).map(([key, score]) => ({
+      name: key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase()).trim(),
+      score: typeof score === 'number' ? score : 0
+    }))
+  }
+  
   if (!Array.isArray(analysis.recommendations)) analysis.recommendations = []
   analysis.recommendations = analysis.recommendations.map((r: any) => {
     if (!r) return r

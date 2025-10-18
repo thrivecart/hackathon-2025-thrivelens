@@ -376,14 +376,79 @@ async function run() {
   scrollToBottom()
 
   try {
-    // Convert messages to conversation history format
+    // Convert messages to conversation history format with asset context
     const history = messages.value
-        .filter(m => m.role !== 'system')
+        .filter(m => m.role !== 'system' && m.role !== 'progress')
         .slice(-12)
-        .map(m => ({
-          role: m.role === 'assistant' ? 'assistant' : 'user',
-          content: m.content
-        }))
+        .map(m => {
+          let content = m.content
+          
+          // For assistant messages, add context about audit results for continuity
+          if (m.role === 'assistant' && m.assets && m.assets.length > 0) {
+            const auditDataSummary = []
+            const fullAuditData = []
+            
+            for (const asset of m.assets) {
+              if (asset.uxAnalysis) {
+                const analysis = asset.uxAnalysis
+                const score = analysis.overallScore || analysis.score
+                const device = analysis.device || 'page'
+                const recCount = analysis.recommendations?.length || 0
+                
+                // Brief summary for readability
+                auditDataSummary.push(
+                  `[AUDIT CONTEXT: Analyzed ${device} UX with score ${score}/100, generated ${recCount} recommendations]`
+                )
+                
+                // Full audit data structure for PDF generation
+                const fullDeviceData = {
+                  deviceType: device,
+                  overallScore: score,
+                  summary: analysis.summary || '',
+                  categoryScores: analysis.categoryScores || [],
+                  strengths: analysis.strengths || [],
+                  weaknesses: analysis.weaknesses || [], 
+                  recommendations: analysis.recommendations || []
+                }
+                fullAuditData.push(fullDeviceData)
+              }
+              if (asset.pdfUrl) {
+                auditDataSummary.push('[PDF CONTEXT: Generated audit report PDF]')
+              }
+            }
+            
+            if (auditDataSummary.length > 0) {
+              let contextString = auditDataSummary.join(' ')
+              
+              // Add full audit data as structured JSON for AI to use in PDF generation
+              if (fullAuditData.length > 0) {
+                const combinedScore = Math.round(fullAuditData.reduce((sum, d) => sum + d.overallScore, 0) / fullAuditData.length)
+                const combinedSummary = fullAuditData.map(d => `**${d.deviceType.toUpperCase()}**: ${d.summary}`).join(' ')
+                
+                const fullAuditStructure = {
+                  metadata: {
+                    url: 'website-from-audit', // Will be overridden by AI based on context
+                    date: new Date().toISOString(),
+                    deviceType: fullAuditData.length > 1 ? 'multi-device' : fullAuditData[0].deviceType,
+                    pageType: 'general'
+                  },
+                  combinedScore,
+                  combinedSummary,
+                  deviceAnalyses: fullAuditData
+                }
+                
+                contextString += ` [FULL_AUDIT_DATA: ${JSON.stringify(fullAuditStructure)}]`
+              }
+              
+              content = `${contextString} ${content}`
+            }
+          }
+          
+          return {
+            role: m.role === 'assistant' ? 'assistant' : 'user',
+            content
+          }
+        })
 
     const requestBody: any = {
       query: q || 'Analyze the provided image',

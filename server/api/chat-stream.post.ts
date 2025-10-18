@@ -47,6 +47,9 @@ export default defineEventHandler(async (event) => {
       ...history,
       { role: 'user', content: userMessage }
     ]
+    
+    console.log('[DEBUG] Conversation history length:', history.length)
+    console.log('[DEBUG] Last few history items:', JSON.stringify(history.slice(-3), null, 2))
 
     // Get initial AI response with potential tool calls
     messages.push({ type: 'status', content: getStreamingStatusPrompt(), status: 'thinking' })
