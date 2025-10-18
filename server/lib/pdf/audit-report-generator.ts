@@ -236,7 +236,7 @@ export async function generateAuditReportPDF(audit: AuditReportInput): Promise<G
   doc.setFontSize(14)
   doc.text('UX Audit Report', margin + logoSize + 15, y + 42)
 
-  y += logoSize + 30
+  y += logoSize + 40
 
   // Metadata
   y = addKeyValue(doc, 'URL:', audit.metadata.url, margin, y, pageWidth, margin)
@@ -266,7 +266,7 @@ export async function generateAuditReportPDF(audit: AuditReportInput): Promise<G
   doc.setFontSize(11)
   const summaryLines = doc.splitTextToSize(audit.summary || 'No summary provided.', pageWidth - margin * 2)
   doc.text(summaryLines, margin, y)
-  y += summaryLines.length * 14 + 1
+  y += summaryLines.length * 14 + 15
 
   // Category scores grid (2 columns)
   if (audit.categoryScores?.length) {
@@ -306,7 +306,7 @@ export async function generateAuditReportPDF(audit: AuditReportInput): Promise<G
 
   // Recommendations
   y = addSectionTitle(doc, 'Recommendations', margin, y)
-  y += 6
+  y += 15
 
   const badgeColor = (p: 'high' | 'medium' | 'low') => {
     if (p === 'high') return COLORS.high
@@ -338,7 +338,7 @@ export async function generateAuditReportPDF(audit: AuditReportInput): Promise<G
     doc.setFontSize(10)
     doc.text(badge, cardX + cardW - badgeW + 6, y + 2)
 
-    y += 14
+    y += 20
 
     // Description
     doc.setTextColor(COLORS.text)
@@ -356,15 +356,16 @@ export async function generateAuditReportPDF(audit: AuditReportInput): Promise<G
     doc.setFont('helvetica', 'normal')
     doc.setTextColor(COLORS.text)
     doc.setFontSize(11)
-    const impactLines = doc.splitTextToSize(rec.expectedImpact || 'Not specified.', cardW)
-    doc.text(impactLines, cardX + 96, y)
+    // Calculate remaining width after the label (96px offset + some padding)
+    const impactLines = doc.splitTextToSize(rec.expectedImpact || 'Not specified.', cardW - 100)
+    doc.text(impactLines, cardX + 100, y)
     y += impactLines.length * 14 + 10
 
     // Divider
     doc.setDrawColor(COLORS.border)
     doc.setLineWidth(0.5)
     doc.line(cardX, y, cardX + cardW, y)
-    y += 6
+    y += 15
   }
 
   y = ensureSpace(doc, 24, y + 8, margin)
