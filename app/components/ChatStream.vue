@@ -1,14 +1,14 @@
 <template>
-  <div class="flex flex-col flex-1 min-h-0">
-    <div ref="scrollEl" class="flex-1 min-h-0 overflow-auto flex flex-col gap-3 py-2 pb-6">
-      <div v-for="(m, i) in messages" :key="i" class="flex gap-2.5 max-w-chat"
+  <div class="flex flex-col h-full py-4">
+    <div class="flex-1 flex flex-col gap-3 pb-6">
+      <div v-for="m in messages" :key="m.id" class="flex gap-2.5 max-w-chat"
            :class="m.role === 'assistant' ? 'self-start' : 'self-end flex-row-reverse'">
         <div class="px-3 py-2.5 rounded-message border border-border"
              :class="m.role === 'assistant' ? 'bg-bg-soft' : 'bg-accent text-white'">
           <div class="text-xs text-muted mb-1.5"
                :class="m.role === 'assistant' ? 'text-text' : 'text-white'"
           >
-            {{ m.role === 'assistant' ? 'Thrivelens' : 'You' }}
+            {{ m.role === 'assistant' ? 'ThriveLens' : 'You' }}
           </div>
           <div class="whitespace-pre-wrap break-words">
             <template v-if="m.assets && m.assets.length">
@@ -71,10 +71,6 @@
         </div>
       </div>
       <div v-if="loading" class="flex gap-2.5 self-start max-w-chat">
-        <div
-            class="w-7 h-7 rounded-full inline-flex items-center justify-center text-xs border border-border bg-bg-soft text-muted">
-          T
-        </div>
         <div class="px-3 py-2.5 rounded-message border border-border bg-bg-soft">
           <div class="text-xs text-muted mb-1.5">ThriveLens</div>
           <div class="flex items-center gap-1" aria-live="polite" aria-label="Thinking">
@@ -97,8 +93,7 @@
       </div>
     </div>
 
-    <div class="sticky bottom-0 left-0 right-0 pt-2"
-         style="background: linear-gradient(180deg, rgba(0,0,0,0) 0%, var(--bg) 40%)">
+    <div class="pt-4">
       <!-- Image preview -->
       <div v-if="imagePreviewUrl" class="mb-2 relative inline-block">
         <img :src="imagePreviewUrl" alt="Preview" class="max-w-[200px] max-h-[200px] rounded-lg border border-border" />
@@ -132,7 +127,7 @@
             class="flex-1 resize-none bg-transparent text-text border-0 outline-none disabled:opacity-60 disabled:cursor-not-allowed"
             placeholder="Enter your prompt here or paste an image..."
             rows="1"
-            style="min-height: 40px; max-height: 160px; overflow: auto;"
+            style="min-height: 35px; max-height: 160px; overflow: auto;"
             @keydown.enter.exact.prevent="run"
             @paste="handlePaste"
             :disabled="loading"

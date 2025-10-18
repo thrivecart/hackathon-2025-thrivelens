@@ -1,6 +1,8 @@
 <template>
-  <div class="flex-1 min-h-0 flex justify-center w-full">
-    <ChatStream class="flex-1 min-h-0 max-w-screen-lg w-full" />
+  <div class="flex-1 flex justify-center w-full overflow-auto">
+    <div class="max-w-screen-lg w-full px-container">
+      <ChatStream class="w-full" />
+    </div>
   </div>
 </template>
 
