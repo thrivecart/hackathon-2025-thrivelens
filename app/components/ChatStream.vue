@@ -1,8 +1,8 @@
 <template>
-  <div class="flex flex-col h-full py-4">
-    <div class="flex-1 flex flex-col gap-3 pb-6">
-      <div v-for="m in messages" :key="m.id" class="flex gap-2.5 max-w-chat"
-           :class="m.role === 'assistant' ? 'self-start' : 'self-end flex-row-reverse'">
+  <div class="flex flex-col min-h-full">
+    <div class="flex-1 flex flex-col items-center w-full pt-4 pb-[200px] space-y-4">
+      <div v-for="m in messages" :key="m.id" class="flex gap-2.5 max-w-chat w-full px-4"
+           :class="m.role === 'assistant' ? 'justify-start' : 'justify-end'">
         <div class="px-3 py-2.5 rounded-message border border-border"
              :class="m.role === 'assistant' ? 'bg-bg-soft' : 'bg-accent text-white'">
           <div class="text-xs text-muted mb-1.5"
@@ -19,8 +19,8 @@
                     <div class="text-2xl">📄</div>
                     <div class="flex-1">
                       <div class="font-semibold text-text mb-1">Your audit report is ready!</div>
-                      <a :href="asset.pdfUrl" 
-                         target="_blank" 
+                      <a :href="asset.pdfUrl"
+                         target="_blank"
                          rel="noopener noreferrer"
                          download
                          class="inline-flex items-center gap-2 text-accent hover:underline font-medium">
@@ -87,7 +87,7 @@
           </div>
         </div>
       </div>
-      <div v-if="loading" class="flex gap-2.5 self-start max-w-chat">
+      <div v-if="loading" class="flex gap-2.5 w-full px-4 max-w-chat w-full px-4 justify-start">
         <div class="px-3 py-2.5 rounded-message border border-border bg-bg-soft">
           <div class="text-xs text-muted mb-1.5">ThriveLens</div>
           <div class="flex items-center gap-1" aria-live="polite" aria-label="Thinking">
@@ -95,6 +95,67 @@
             <span class="w-2 h-2 bg-muted rounded-full animate-bounce" style="animation-delay:150ms"></span>
             <span class="w-2 h-2 bg-muted rounded-full animate-bounce" style="animation-delay:300ms"></span>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sticky input area with backdrop -->
+    <div class="fixed bottom-0 left-0 right-0">
+      <div class="max-w-screen-lg mx-auto px-4 py-4 pt-0 bg-bg">
+        <!-- Image preview -->
+        <div v-if="imagePreviewUrl" class="mb-2 relative inline-block">
+          <img :src="imagePreviewUrl" alt="Preview"
+               class="max-w-[200px] max-h-[200px] rounded-lg border border-border" />
+          <button
+              @click="removeImage"
+              class="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center hover:bg-red-600 transition-colors"
+              aria-label="Remove image"
+          >×
+          </button>
+        </div>
+
+        <div class="bg-bg-soft border border-border rounded-full py-2 px-5 flex flex-row align-middle gap-2 items-end">
+          <!-- Hidden file input -->
+          <input
+              ref="fileInputRef"
+              type="file"
+              accept="image/*"
+              @change="handleFileSelect"
+              class="hidden"
+          />
+
+          <button
+              type="button"
+              @click="triggerFileInput"
+              :disabled="loading"
+              class="dark:text-white rounded-full w-12 h-12 text-muted hover:text-text transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center"
+          >
+            <Icon icon="line-md:plus" class="w-7 h-7" />
+          </button>
+
+          <textarea
+              v-model="prompt"
+              class="flex-1 resize-none bg-transparent text-text border-0 outline-none disabled:opacity-60 disabled:cursor-not-allowed"
+              placeholder="Enter your prompt here or paste an image..."
+              rows="1"
+              style="min-height: 35px; max-height: 160px; overflow: auto;"
+              @keydown.enter.exact.prevent="run"
+              @paste="handlePaste"
+              :disabled="loading"
+          ></textarea>
+
+          <div class="flex gap-2 items-center">
+            <!-- Send button -->
+            <button
+                class="w-[150px] bg-accent text-white border border-transparent px-3.5 py-2.5 rounded-full font-semibold cursor-pointer transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                @click="run"
+                :disabled="loading"
+            >{{ loading ? 'Processing...' : 'Send' }}
+            </button>
+          </div>
+        </div>
+        <div class="text-xs text-center text-muted mt-1.5">ThriveLens may not always be accurate. Please review
+                                                                results carefully.
         </div>
       </div>
     </div>
@@ -108,61 +169,6 @@
         </button>
         <img :src="lightboxUrl" class="max-w-[90vw] max-h-[90vh] rounded-lg shadow-xl" alt="Screenshot preview" />
       </div>
-    </div>
-
-    <div class="pt-4">
-      <!-- Image preview -->
-      <div v-if="imagePreviewUrl" class="mb-2 relative inline-block">
-        <img :src="imagePreviewUrl" alt="Preview" class="max-w-[200px] max-h-[200px] rounded-lg border border-border" />
-        <button
-            @click="removeImage"
-            class="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center hover:bg-red-600 transition-colors"
-            aria-label="Remove image"
-        >×
-        </button>
-      </div>
-
-      <div class="bg-bg-soft border border-border rounded-full py-2 px-5 flex flex-row align-middle gap-2 items-end">
-        <!-- Hidden file input -->
-        <input
-            ref="fileInputRef"
-            type="file"
-            accept="image/*"
-            @change="handleFileSelect"
-            class="hidden"
-        />
-
-        <button
-            type="button"
-            @click="triggerFileInput"
-            :disabled="loading"
-            class="dark:text-white rounded-full w-12 h-12 text-muted hover:text-text transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center"
-        >
-          <Icon icon="line-md:plus" class="w-7 h-7" />
-        </button>
-
-        <textarea
-            v-model="prompt"
-            class="flex-1 resize-none bg-transparent text-text border-0 outline-none disabled:opacity-60 disabled:cursor-not-allowed"
-            placeholder="Enter your prompt here or paste an image..."
-            rows="1"
-            style="min-height: 35px; max-height: 160px; overflow: auto;"
-            @keydown.enter.exact.prevent="run"
-            @paste="handlePaste"
-            :disabled="loading"
-        ></textarea>
-
-        <div class="flex gap-2 items-center">
-          <!-- Send button -->
-          <button
-              class="w-[150px] bg-accent text-white border border-transparent px-3.5 py-2.5 rounded-full font-semibold cursor-pointer transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-              @click="run"
-              :disabled="loading"
-          >{{ loading ? 'Processing...' : 'Send' }}
-          </button>
-        </div>
-      </div>
-      <div class="text-xs text-center text-muted mt-1.5 py-3">ThriveLens may not always be accurate. Please review results carefully.</div>
     </div>
   </div>
 </template>
@@ -209,8 +215,11 @@ const messages = ref<Message[]>([
     content: 'How can I help you?'
   }
 ])
-const scrollEl = ref<HTMLElement | null>(null)
 const lightboxUrl = ref<string | null>(null)
+
+const props = defineProps<{
+  scrollContainer?: HTMLElement | null
+}>()
 
 function openLightbox(url: string) {
   lightboxUrl.value = url
@@ -222,8 +231,13 @@ function closeLightbox() {
 
 function scrollToBottom() {
   nextTick(() => {
-    const el = scrollEl.value
-    if (el) el.scrollTop = el.scrollHeight
+    const container = props.scrollContainer
+    if (container) {
+      container.scrollTo({
+        top: container.scrollHeight,
+        behavior: 'smooth'
+      })
+    }
   })
 }
 

@@ -1,10 +1,11 @@
 <template>
-  <div class="flex-1 flex justify-center w-full overflow-auto">
-    <div class="max-w-screen-lg w-full px-container">
-      <ChatStream class="w-full" />
-    </div>
+  <div ref="scrollContainer" class="flex-1 w-full overflow-y-auto">
+    <ChatStream :scroll-container="scrollContainer" />
   </div>
 </template>
 
 <script setup lang="ts">
+import { ref } from 'vue'
+
+const scrollContainer = ref<HTMLElement | null>(null)
 </script>
