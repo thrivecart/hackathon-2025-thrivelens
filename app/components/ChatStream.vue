@@ -1,7 +1,7 @@
 <template>
   <div class="flex flex-col min-h-full">
     <div class="flex-1 flex flex-col items-center w-full pt-4 pb-[200px] space-y-4">
-      <div v-for="m in messages" :key="m.id" class="flex gap-2.5 max-w-chat w-full px-4"
+      <div v-for="m in messages" :key="m.id" class="flex gap-2.5 max-w-screen-lg w-full px-4"
            :class="m.role === 'assistant' ? 'justify-start' : 'justify-end'">
         <div class="px-3 py-2.5 rounded-message border border-border"
              :class="m.role === 'assistant' ? 'bg-bg-soft' : 'bg-accent text-white'">
@@ -83,11 +83,18 @@
                 </div>
               </div>
             </template>
-            {{ m.content }}
+            
+            <!-- Show typing animation or full content -->
+            <template v-if="m.isTyping && m.displayedContent !== undefined">
+              {{ m.displayedContent }}<span class="inline-block w-1 h-4 bg-text animate-pulse ml-0.5"></span>
+            </template>
+            <template v-else>
+              {{ m.content }}
+            </template>
           </div>
         </div>
       </div>
-      <div v-if="loading" class="flex gap-2.5 w-full px-4 max-w-chat w-full px-4 justify-start">
+      <div v-if="loading" class="flex gap-2.5 w-full px-4 max-w-screen-lg w-full px-4 justify-start">
         <div class="px-3 py-2.5 rounded-message border border-border bg-bg-soft">
           <div class="text-xs text-muted mb-1.5">ThriveLens</div>
           <div class="flex items-center gap-1" aria-live="polite" aria-label="Thinking">
@@ -199,23 +206,29 @@ interface MessageAsset {
 }
 
 interface Message {
-  role: 'user' | 'assistant'
+  role: 'user' | 'assistant' | 'progress'
   content: string
   assets?: MessageAsset[]
+  status?: string
+  isTyping?: boolean
+  displayedContent?: string
 }
-
+// Component state
 const prompt = ref('')
 const loading = ref(false)
 const uploadedImage = ref<string | null>(null)
 const imagePreviewUrl = ref<string | null>(null)
 const fileInputRef = ref<HTMLInputElement | null>(null)
+const lightboxUrl = ref<string | null>(null)
+const isTyping = ref(false)
+
+// Chat messages
 const messages = ref<Message[]>([
   {
     role: 'assistant',
     content: 'How can I help you?'
   }
 ])
-const lightboxUrl = ref<string | null>(null)
 
 const props = defineProps<{
   scrollContainer?: HTMLElement | null
@@ -241,8 +254,18 @@ function scrollToBottom() {
   })
 }
 
-watch(messages, scrollToBottom, { deep: true })
-watch(loading, () => nextTick(scrollToBottom))
+// Only auto-scroll when not typing
+watch(messages, () => {
+  if (!isTyping.value) {
+    scrollToBottom()
+  }
+}, { deep: true })
+
+watch(loading, () => {
+  if (!isTyping.value) {
+    nextTick(scrollToBottom)
+  }
+})
 
 let escHandler: ((e: KeyboardEvent) => void) | null = null
 onMounted(() => {
@@ -255,8 +278,31 @@ onBeforeUnmount(() => {
   if (escHandler) window.removeEventListener('keydown', escHandler)
 })
 
+// Utility functions
 function addUserMessage(content: string) {
   messages.value.push({ role: 'user', content })
+}
+
+function startTypingAnimation(msgIndex: number, content: string) {
+  isTyping.value = true
+  
+  const chunkSize = 4
+  const typingSpeed = 50
+  let currentIndex = 0
+  
+  const typeInterval = setInterval(() => {
+    if (currentIndex < content.length) {
+      const nextIndex = Math.min(currentIndex + chunkSize, content.length)
+      const displayText = content.substring(0, nextIndex)
+      messages.value[msgIndex].displayedContent = displayText
+      currentIndex = nextIndex
+    } else {
+      messages.value[msgIndex].isTyping = false
+      messages.value[msgIndex].displayedContent = content
+      isTyping.value = false
+      clearInterval(typeInterval)
+    }
+  }, typingSpeed)
 }
 
 // Handle file upload
@@ -424,10 +470,27 @@ async function run() {
       throw new Error('Invalid response format')
     }
 
-    messages.value.push({ role: 'assistant', content, assets })
+    // Add assistant message with assets immediately visible, text with typing effect
+    const msgIndex = messages.value.length
+    messages.value.push({ 
+      role: 'assistant', 
+      content, 
+      assets, // Assets appear immediately
+      isTyping: content.length > 0, // Only enable typing if there's text content
+      displayedContent: ''
+    })
 
     loading.value = false
-    scrollToBottom()
+    scrollToBottom() // Scroll to show assets immediately
+
+    // Start typing animation for text content
+    if (content.length > 0) {
+      startTypingAnimation(msgIndex, content)
+    } else {
+      // No text content, just show assets
+      messages.value[msgIndex].isTyping = false
+      messages.value[msgIndex].displayedContent = content
+    }
 
   } catch (e: any) {
     messages.value.push({ role: 'assistant', content: `Error: ${e?.message || 'Something went wrong.'}` })

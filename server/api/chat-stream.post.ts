@@ -2,20 +2,21 @@ import { defineEventHandler, readBody } from 'h3'
 import { useRuntimeConfig } from '#imports'
 import OpenAI from 'openai'
 
-// Import the new modular architecture
 import {
   getThrivelensSystemPrompt,
   getStreamingStatusPrompt
 } from '../lib/prompts/thrivelens-prompts'
 import { ALL_TOOL_DEFINITIONS, routeToolCall } from '../lib/mcp/tools-registry'
-import { runReasoningLoop } from '../lib/mcp/reasoning-loop'
+import { runReasoningLoop, StreamMessage } from '../lib/mcp/reasoning-loop'
+
+interface ChatRequest {
+  query: string
+  history?: Array<{role: string, content: string}>
+  imageData?: string
+}
 
 export default defineEventHandler(async (event) => {
-  const body = await readBody<{ 
-    query: string; 
-    history?: Array<{role: string, content: string}>
-    imageData?: string
-  }>(event)
+  const body = await readBody<ChatRequest>(event)
   const query = (body?.query || '').trim()
   const history = body?.history || []
   const imageData = body?.imageData
@@ -32,18 +33,14 @@ export default defineEventHandler(async (event) => {
 
   try {
     const openai = new OpenAI({ apiKey })
-    const messages: Array<{ type: string, content: string, status?: string }> = []
+    const messages: StreamMessage[] = []
     
-    // Use centralized system prompt
     const systemPrompt = getThrivelensSystemPrompt()
 
-    // Build conversation with history
-    let userMessage = query
-    
-    // If image is provided, add context to the query
-    if (imageData) {
-      userMessage = query ? `${query} [User has provided an image for analysis]` : 'Analyze the provided image for UX and conversion optimization.'
-    }
+    // Prepare user message (add image context if needed)
+    const userMessage = imageData 
+      ? (query ? `${query} [User has provided an image for analysis]` : 'Analyze the provided image for UX and conversion optimization.')
+      : query
     
     const conversationMessages = [
       { role: 'system', content: systemPrompt },
@@ -51,7 +48,7 @@ export default defineEventHandler(async (event) => {
       { role: 'user', content: userMessage }
     ]
 
-    // Step 1: Get initial AI response with potential tool calls
+    // Get initial AI response with potential tool calls
     messages.push({ type: 'status', content: getStreamingStatusPrompt(), status: 'thinking' })
     
     const response = await openai.chat.completions.create({
@@ -66,19 +63,15 @@ export default defineEventHandler(async (event) => {
       return { messages: [{ type: 'error', content: 'Failed to get AI response' }] }
     }
 
-    // Create a custom router that injects imageData if needed
+    // Custom router to inject full imageData for image analysis
     const customRouter = async (toolName: string, args: any) => {
-      // CRITICAL: OpenAI truncates large strings in function args
-      // If calling analyze_image_ux, ALWAYS inject the full imageData from context
       if (toolName === 'analyze_image_ux' && imageData) {
-        // Replace any truncated imageData with the full version
-        args = { ...args, imageData }
+        args = { ...args, imageData } // Inject full imageData
       }
-      
       return await routeToolCall(toolName, args)
     }
     
-    // Start reasoning loop with streaming updates
+    // Execute reasoning loop to handle tool calls and generate response
     const finalContent = await runReasoningLoop(
       openai,
       systemPrompt,
@@ -88,7 +81,7 @@ export default defineEventHandler(async (event) => {
       messages,
       ALL_TOOL_DEFINITIONS,
       customRouter,
-      12  // Max iterations
+      12
     )
     
     messages.push({ 
