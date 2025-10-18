@@ -3,14 +3,13 @@
     <div ref="scrollEl" class="flex-1 min-h-0 overflow-auto flex flex-col gap-3 py-2 pb-6">
       <div v-for="(m, i) in messages" :key="i" class="flex gap-2.5 max-w-chat"
            :class="m.role === 'assistant' ? 'self-start' : 'self-end flex-row-reverse'">
-        <div
-            class="w-7 h-7 rounded-full inline-flex items-center justify-center text-xs border border-border bg-bg-soft text-muted">
-          {{ m.role === 'assistant' ? 'T' : 'You' }}
-        </div>
         <div class="px-3 py-2.5 rounded-message border border-border"
-             :class="m.role === 'assistant' ? 'bg-bg-soft' : ''"
-             :style="m.role === 'user' ? 'background: rgba(62,123,246,0.15); border-color: rgba(62,123,246,0.35);' : ''">
-          <div class="text-xs text-muted mb-1.5">{{ m.role === 'assistant' ? 'Thrivelens' : 'You' }}</div>
+             :class="m.role === 'assistant' ? 'bg-bg-soft' : 'bg-accent text-white'">
+          <div class="text-xs text-muted mb-1.5"
+               :class="m.role === 'assistant' ? 'text-text' : 'text-white'"
+          >
+            {{ m.role === 'assistant' ? 'Thrivelens' : 'You' }}
+          </div>
           <div class="whitespace-pre-wrap break-words">
             <template v-if="m.assets && m.assets.length">
               <div v-for="(asset, j) in m.assets" :key="j">
@@ -111,7 +110,7 @@
         </button>
       </div>
 
-      <div class="bg-bg-soft border border-border rounded-full py-2 px-5 flex gap-2 items-end">
+      <div class="bg-bg-soft border border-border rounded-full py-2 px-5 flex flex-row align-middle gap-2 items-end">
         <!-- Hidden file input -->
         <input
             ref="fileInputRef"
@@ -120,6 +119,13 @@
             @change="handleFileSelect"
             class="hidden"
         />
+
+        <Button
+            @click="triggerFileInput"
+            class="dark:text-white rounded-full w-12 h-12 text-muted hover:text-text transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+        >
+          <Icon icon="line-md:plus" class="w-7 h-7" />
+        </Button>
 
         <textarea
             v-model="prompt"
@@ -133,21 +139,6 @@
         ></textarea>
 
         <div class="flex gap-2 items-center">
-          <!-- Image upload button -->
-          <button
-              @click="triggerFileInput"
-              class="p-2.5 text-muted hover:text-text transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-              :disabled="loading"
-              aria-label="Upload image"
-              title="Upload image"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
-                 stroke="currentColor" class="w-5 h-5">
-              <path stroke-linecap="round" stroke-linejoin="round"
-                    d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Zm10.5-11.25h.008v.008h-.008V8.25Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
-            </svg>
-          </button>
-
           <!-- Send button -->
           <button
               class="w-[150px] bg-accent text-white border border-transparent px-3.5 py-2.5 rounded-full font-semibold cursor-pointer transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
@@ -164,6 +155,7 @@
 
 <script setup lang="ts">
 import { ref, nextTick, watch, onMounted, onBeforeUnmount } from 'vue'
+import { Icon } from "@iconify/vue";
 
 interface MessageAsset {
   screenshotUrl?: string
