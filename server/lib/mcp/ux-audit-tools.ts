@@ -1,5 +1,3 @@
-// UX Audit Tools for Website Screenshot and Conversion Analysis
-
 import { useRuntimeConfig } from '#imports'
 import { chromium } from 'playwright'
 import OpenAI from 'openai'
@@ -92,12 +90,12 @@ const DEVICE_PRESETS = {
 // UX audit prompt templates
 export function getPrompt(device:string, pageType: string, focusAreas: string[]) : string {
   return  `
-      You are a senior UX and conversion optimization expert specializing in e-commerce and digital checkout experiences.  
+      You are a senior UX and conversion optimization expert specializing in e-commerce and digital experiences.  
       Analyze the provided webpage screenshot from a ${device} perspective.  
       The page type is: ${pageType || 'general'}.
       
-      Your goal is to objectively evaluate the page’s **user experience, clarity, and conversion effectiveness**, 
-      especially for ThriveCart pages or similar checkout, sales, and landing pages.
+      Your goal is to objectively evaluate the page's **user experience, clarity, and conversion effectiveness**, 
+      focusing on checkout flows, sales pages, landing pages, and e-commerce experiences.
       
       ---
       ### Focus Areas:

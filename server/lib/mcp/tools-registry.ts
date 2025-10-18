@@ -1,6 +1,5 @@
 // Central MCP Tools Registry - Manages all tool routing and definitions
 
-import { callThriveCartTool, THRIVECART_TOOLS, THRIVECART_TOOL_NAMES } from './thrivecart-tools'
 import { callUXAuditTool, UX_AUDIT_TOOLS, UX_AUDIT_TOOL_NAMES } from './ux-audit-tools'
 // Import other MCP tool handlers here as needed:
 // import { callStripeTool, STRIPE_TOOLS, STRIPE_TOOL_NAMES } from './stripe-tools'
@@ -8,7 +7,6 @@ import { callUXAuditTool, UX_AUDIT_TOOLS, UX_AUDIT_TOOL_NAMES } from './ux-audit
 
 // Combine all tool definitions from different services
 export const ALL_TOOL_DEFINITIONS = [
-  ...THRIVECART_TOOLS,
   ...UX_AUDIT_TOOLS,
   // ...STRIPE_TOOLS,      // Add when Stripe tools are created
   // ...SLACK_TOOLS,       // Add when Slack tools are created
@@ -16,11 +14,6 @@ export const ALL_TOOL_DEFINITIONS = [
 
 // Central tool router - determines which MCP handler to use
 export async function routeToolCall(toolName: string, args: any): Promise<any> {
-  // Route to ThriveCart tools
-  if (THRIVECART_TOOL_NAMES.includes(toolName)) {
-    return await callThriveCartTool(toolName, args)
-  }
-  
   // Route to UX Audit tools
   if (UX_AUDIT_TOOL_NAMES.includes(toolName)) {
     return await callUXAuditTool(toolName, args)
@@ -40,10 +33,8 @@ export async function routeToolCall(toolName: string, args: any): Promise<any> {
 }
 
 // Get tools for specific services (useful for context-specific prompts)
-export function getToolsForService(serviceName: 'thrivecart' | 'ux-audit' | 'stripe' | 'slack' | 'all' = 'all') {
+export function getToolsForService(serviceName: 'ux-audit' | 'stripe' | 'slack' | 'all' = 'all') {
   switch (serviceName) {
-    case 'thrivecart':
-      return THRIVECART_TOOLS
     case 'ux-audit':
       return UX_AUDIT_TOOLS
     // case 'stripe':
@@ -59,7 +50,6 @@ export function getToolsForService(serviceName: 'thrivecart' | 'ux-audit' | 'str
 // Get available tool names (useful for validation)
 export function getAvailableToolNames(): string[] {
   return [
-    ...THRIVECART_TOOL_NAMES,
     ...UX_AUDIT_TOOL_NAMES,
     // ...STRIPE_TOOL_NAMES,    // Add when implemented
     // ...SLACK_TOOL_NAMES,     // Add when implemented
