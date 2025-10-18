@@ -13,7 +13,7 @@ export default defineNuxtConfig({
       apiKey: process.env.NUXT_OPENAI_API_KEY
     },
     public: {
-      appName: 'Thrivebot'
+      appName: 'Thrivelens'
     }
   }
 })

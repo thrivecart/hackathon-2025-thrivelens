@@ -1,7 +1,7 @@
 // Generic Reasoning Loop for MCP Tools
 // Works with any tool definitions and routing function
 
-import { getAnalyzingPrompt } from '../prompts/thrivebot-prompts'
+import { getAnalyzingPrompt } from '../prompts/thrivelens-prompts'
 
 export interface StreamMessage {
   type: string

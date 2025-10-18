@@ -4,7 +4,7 @@
       <div v-for="(m, i) in messages" :key="i" class="flex gap-2.5 max-w-chat" :class="m.role === 'assistant' ? 'self-start' : 'self-end flex-row-reverse'">
         <div class="w-7 h-7 rounded-full inline-flex items-center justify-center text-xs border border-border bg-bg-soft text-muted">{{ m.role === 'assistant' ? 'T' : 'You' }}</div>
         <div class="px-3 py-2.5 rounded-message border border-border" :class="m.role === 'assistant' ? 'bg-bg-soft' : ''" :style="m.role === 'user' ? 'background: rgba(62,123,246,0.15); border-color: rgba(62,123,246,0.35);' : ''">
-          <div class="text-xs text-muted mb-1.5">{{ m.role === 'assistant' ? 'Thrivebot' : 'You' }}</div>
+          <div class="text-xs text-muted mb-1.5">{{ m.role === 'assistant' ? 'Thrivelens' : 'You' }}</div>
           <div class="whitespace-pre-wrap break-words">
             <template v-if="m.assets && m.assets.length">
               <div v-for="(asset, j) in m.assets" :key="j">
@@ -52,7 +52,7 @@
       <div v-if="loading" class="flex gap-2.5 self-start max-w-chat">
         <div class="w-7 h-7 rounded-full inline-flex items-center justify-center text-xs border border-border bg-bg-soft text-muted">T</div>
         <div class="px-3 py-2.5 rounded-message border border-border bg-bg-soft">
-          <div class="text-xs text-muted mb-1.5">Thrivebot</div>
+          <div class="text-xs text-muted mb-1.5">ThriveLens</div>
           <div class="flex items-center gap-1" aria-live="polite" aria-label="Thinking">
             <span class="w-2 h-2 bg-muted rounded-full animate-bounce" style="animation-delay:0ms"></span>
             <span class="w-2 h-2 bg-muted rounded-full animate-bounce" style="animation-delay:150ms"></span>
@@ -77,7 +77,7 @@
           <button class="bg-accent text-gray-900 border border-transparent px-3.5 py-2.5 rounded-button font-semibold cursor-pointer transition-colors disabled:opacity-60 disabled:cursor-not-allowed" @click="run" :disabled="loading">{{ loading ? 'Processing...' : 'Send' }}</button>
         </div>
       </div>
-      <div class="text-xs text-center text-muted mt-1.5 py-3">Thrivebot can make mistake.</div>
+      <div class="text-xs text-center text-muted mt-1.5 py-3">ThriveLens can make mistake.</div>
     </div>
   </div>
 </template>
