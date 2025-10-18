@@ -78,6 +78,15 @@ export async function runReasoningLoop(
             screenshotUrl: result.screenshotPath,
             uxAnalysis: result.analysis
           })
+        } else if (name === 'export_audit_pdf' && result.ok) {
+          // Handle PDF export results
+          messages.push({ 
+            type: 'pdf_export', 
+            content: `📄 PDF report generated`,
+            status: 'success',
+            pdfUrl: result.url,
+            pdfFilename: result.filename
+          })
         } else {
           messages.push({ 
             type: 'progress', 

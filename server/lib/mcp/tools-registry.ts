@@ -1,6 +1,7 @@
 // Central MCP Tools Registry - Manages all tool routing and definitions
 
 import { callUXAuditTool, UX_AUDIT_TOOLS, UX_AUDIT_TOOL_NAMES } from './ux-audit-tools'
+import { callPDFExportTool, PDF_EXPORT_TOOLS, PDF_EXPORT_TOOL_NAMES } from './pdf-export-tools'
 // Import other MCP tool handlers here as needed:
 // import { callStripeTool, STRIPE_TOOLS, STRIPE_TOOL_NAMES } from './stripe-tools'
 // import { callSlackTool, SLACK_TOOLS, SLACK_TOOL_NAMES } from './slack-tools'
@@ -8,6 +9,7 @@ import { callUXAuditTool, UX_AUDIT_TOOLS, UX_AUDIT_TOOL_NAMES } from './ux-audit
 // Combine all tool definitions from different services
 export const ALL_TOOL_DEFINITIONS = [
   ...UX_AUDIT_TOOLS,
+  ...PDF_EXPORT_TOOLS,
   // ...STRIPE_TOOLS,      // Add when Stripe tools are created
   // ...SLACK_TOOLS,       // Add when Slack tools are created
 ]
@@ -17,6 +19,11 @@ export async function routeToolCall(toolName: string, args: any): Promise<any> {
   // Route to UX Audit tools
   if (UX_AUDIT_TOOL_NAMES.includes(toolName)) {
     return await callUXAuditTool(toolName, args)
+  }
+  
+  // Route to PDF Export tools
+  if (PDF_EXPORT_TOOL_NAMES.includes(toolName)) {
+    return await callPDFExportTool(toolName, args)
   }
   
   // Route to Stripe tools (when implemented)
@@ -51,6 +58,7 @@ export function getToolsForService(serviceName: 'ux-audit' | 'stripe' | 'slack' 
 export function getAvailableToolNames(): string[] {
   return [
     ...UX_AUDIT_TOOL_NAMES,
+    ...PDF_EXPORT_TOOL_NAMES,
     // ...STRIPE_TOOL_NAMES,    // Add when implemented
     // ...SLACK_TOOL_NAMES,     // Add when implemented
   ]

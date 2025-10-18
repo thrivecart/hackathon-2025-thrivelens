@@ -13,6 +13,23 @@
           <div class="whitespace-pre-wrap break-words">
             <template v-if="m.assets && m.assets.length">
               <div v-for="(asset, j) in m.assets" :key="j">
+                <!-- PDF Export Link -->
+                <div v-if="asset.pdfUrl" class="my-3 p-3 border border-border rounded-lg bg-bg-soft">
+                  <div class="flex items-center gap-3">
+                    <div class="text-2xl">📄</div>
+                    <div class="flex-1">
+                      <div class="font-semibold text-text mb-1">Your audit report is ready!</div>
+                      <a :href="asset.pdfUrl" 
+                         target="_blank" 
+                         rel="noopener noreferrer"
+                         download
+                         class="inline-flex items-center gap-2 text-accent hover:underline font-medium">
+                        <span>{{ asset.pdfFilename || 'ThriveLens-Audit.pdf' }}</span>
+                        <Icon icon="line-md:download-outline-loop" class="w-5 h-5" />
+                      </a>
+                    </div>
+                  </div>
+                </div>
                 <div v-if="asset.screenshotUrl" class="my-3">
                   <button type="button" @click="openLightbox(asset.screenshotUrl)"
                           class="group block rounded-lg border border-border overflow-hidden bg-bg-soft w-64 h-64 md:w-80 md:h-80">
@@ -156,6 +173,8 @@ import { Icon } from "@iconify/vue";
 
 interface MessageAsset {
   screenshotUrl?: string
+  pdfUrl?: string
+  pdfFilename?: string
   uxAnalysis?: {
     overallScore?: number | null
     score?: number | null
@@ -339,6 +358,11 @@ async function run() {
         content = final.content || ''
       }
       for (const msg of result.messages) {
+        // Handle PDF exports
+        if (msg && msg.type === 'pdf_export' && msg.pdfUrl) {
+          assets.push({ pdfUrl: msg.pdfUrl, pdfFilename: msg.pdfFilename })
+        }
+        // Handle UX audit results
         if (msg && (msg.screenshotUrl || msg.uxAnalysis)) {
           let ux = msg.uxAnalysis
           try {
