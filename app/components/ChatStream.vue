@@ -41,19 +41,19 @@
                     <div v-for="(rec, idx) in asset.uxAnalysis.recommendations" :key="idx"
                          class="my-3 p-3 rounded border-l-4"
                          :class="{
-                           'border-l-red-500 bg-red-50 dark:bg-red-950 dark:border-l-red-400': rec.priority === 'high',
-                           'border-l-amber-500 bg-amber-50 dark:bg-amber-950 dark:border-l-amber-400': rec.priority === 'medium',
-                           'border-l-green-500 bg-green-50 dark:bg-green-950 dark:border-l-green-400': rec.priority === 'low',
-                           'border-l-gray-500': !rec.priority || (rec.priority !== 'high' && rec.priority !== 'medium' && rec.priority !== 'low')
+                           'border-l-red-500 bg-red-50 dark:bg-red-950 dark:border-l-red-400': rec.priority.toLowerCase() === 'high',
+                           'border-l-amber-500 bg-amber-50 dark:bg-amber-950 dark:border-l-amber-400': rec.priority.toLowerCase() === 'medium',
+                           'border-l-green-500 bg-green-50 dark:bg-green-950 dark:border-l-green-400': rec.priority.toLowerCase() === 'low',
+                           'border-l-gray-500': !rec.priority || (rec.priority.toLowerCase() !== 'high' && rec.priority.toLowerCase() !== 'medium' && rec.priority.toLowerCase() !== 'low')
                          }"
                          :style="!rec.priority || (rec.priority !== 'high' && rec.priority !== 'medium' && rec.priority !== 'low') ? 'background: var(--bg-soft)' : ''">
                       <div class="flex justify-between items-center mb-2">
                         <strong>{{ rec.title }}</strong>
                         <span class="text-xs px-2 py-0.5 rounded-xl uppercase font-semibold"
                               :class="{
-                                'bg-red-200 text-red-800 dark:bg-red-800 dark:text-red-200': rec.priority === 'high',
-                                'bg-amber-200 text-amber-800 dark:bg-amber-800 dark:text-amber-200': rec.priority === 'medium',
-                                'bg-green-200 text-green-800 dark:bg-green-800 dark:text-green-200': rec.priority === 'low'
+                                'bg-red-200 text-red-800 dark:bg-red-800 dark:text-red-200': rec.priority.toLowerCase() === 'high',
+                                'bg-amber-200 text-amber-800 dark:bg-amber-800 dark:text-amber-200': rec.priority.toLowerCase() === 'medium',
+                                'bg-green-200 text-green-800 dark:bg-green-800 dark:text-green-200': rec.priority.toLowerCase() === 'low'
                               }">{{ rec.priority }}</span>
                       </div>
                       <p class="my-2 leading-relaxed text-text">{{ rec.description }}</p>

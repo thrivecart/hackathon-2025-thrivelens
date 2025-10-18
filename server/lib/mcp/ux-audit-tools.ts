@@ -4,6 +4,7 @@ import OpenAI from 'openai'
 import { mkdir } from 'fs/promises'
 import { join } from 'path'
 import { existsSync } from 'fs'
+import { getUXRefinementPrompt } from '../prompts/thrivelens-prompts'
 
 // Simple in-memory caches (per server process)
 const SIX_HOURS = 6 * 60 * 60 * 1000
@@ -24,6 +25,9 @@ const SCREENSHOT_CACHE = new Map<string, ScreenshotCacheEntry>()
 // Cache UX analyses to avoid re-analyzing when focus areas/pageType repeat
 // key: `${screenshotPath}|${device}|${pageType}|${JSON.stringify(sortedFocusAreas)}`
 const ANALYSIS_CACHE = new Map<string, any>()
+
+// Cache raw vision analysis (before refinement) for debugging/comparison
+const RAW_VISION_CACHE = new Map<string, any>()
 
 function screenshotKey(url: string, device: string, viewport: Viewport) {
   return `${url}|${device}|${viewport.width}x${viewport.height}`
@@ -555,7 +559,7 @@ async function captureScreenshot(
   }
 }
 
-// Core UX analysis function (DRY - reusable for both screenshots and uploaded images)
+// Core UX analysis function with dual-pass architecture (Vision + Reasoning)
 async function analyzeImageWithGPTV(
   base64Image: string,
   device: string,
@@ -572,7 +576,9 @@ async function analyzeImageWithGPTV(
   // Ensure we have clean base64 without any prefix
   const cleanBase64 = base64Image.replace(/^data:image\/\w+;base64,/, '')
 
-  const response = await openai.chat.completions.create({
+  // PASS 1: GPT-4V Vision Analysis
+  console.log('🔍 Pass 1: Running GPT-4V vision analysis...')
+  const visionResponse = await openai.chat.completions.create({
     model: 'gpt-4o',
     max_tokens: 1500,
     temperature: 0.3,
@@ -597,28 +603,96 @@ async function analyzeImageWithGPTV(
     ]
   })
   
-  const content = response.choices[0]?.message?.content
-  if (!content) {
-    throw new Error('No analysis received from OpenAI')
+  const visionContent = visionResponse.choices[0]?.message?.content
+  if (!visionContent) {
+    throw new Error('No analysis received from OpenAI vision model')
   }
   
+  // Parse raw vision output
+  let rawAnalysis: any
   try {
-    return JSON.parse(content)
+    rawAnalysis = JSON.parse(visionContent)
   } catch {
     // Try to extract code-fenced JSON from the content
-    const fenced = content.match(/```json\s*([\s\S]*?)```/i)
+    const fenced = visionContent.match(/```json\s*([\s\S]*?)```/i)
     if (fenced && fenced[1]) {
-      try { return JSON.parse(fenced[1]) } catch {}
+      try { 
+        rawAnalysis = JSON.parse(fenced[1]) 
+      } catch {
+        // Fallback to unstructured response
+        rawAnalysis = {
+          score: null,
+          summary: visionContent,
+          recommendations: [],
+          strengths: [],
+          weaknesses: [],
+          mobileReadiness: 'Analysis provided in summary'
+        }
+      }
+    } else {
+      rawAnalysis = {
+        score: null,
+        summary: visionContent,
+        recommendations: [],
+        strengths: [],
+        weaknesses: [],
+        mobileReadiness: 'Analysis provided in summary'
+      }
     }
-    // If JSON parsing still fails, return structured response
-    return {
-      score: null,
-      summary: content,
-      recommendations: [],
-      strengths: [],
-      weaknesses: [],
-      mobileReadiness: 'Analysis provided in summary'
+  }
+
+  // Uncomment the return below to disable dual-pass analysis
+  // return rawAnalysis
+
+  // Store raw vision output for debugging/comparison
+  const cacheKey = `${device}|${pageType}|${JSON.stringify(focusAreas)}`
+  RAW_VISION_CACHE.set(cacheKey, rawAnalysis)
+
+  // PASS 2: GPT-4.1-mini Refinement & Validation
+  console.log('✨ Pass 2: Refining analysis with GPT-4.1-mini...')
+  try {
+    const refinementResponse = await openai.chat.completions.create({
+      model: 'gpt-4.1-mini',
+      temperature: 0,      // eliminate randomness
+      top_p: 1,            // deterministic sampling
+      seed: 42,            // ensures reproducibility if supported
+      response_format: { type: 'json_object' },
+      messages: [
+        {
+          role: 'system',
+          content: getUXRefinementPrompt()
+        },
+        {
+          role: 'user',
+          content: [
+            'Raw UX audit analysis to refine:',
+            '',
+            '```json',
+            JSON.stringify(rawAnalysis, null, 2),
+            '```',
+            '',
+            `Context: ${device} device, ${pageType} page type`,
+            focusAreas.length > 0 ? `Focus areas: ${focusAreas.join(', ')}` : '',
+            '',
+            'Validate scores, ensure recommendations reference specific elements, normalize language, and fix any structural issues.'
+          ].filter(Boolean).join('\n')
+        }
+      ]
+    })
+
+    const refinedContent = refinementResponse.choices[0]?.message?.content
+    if (!refinedContent) {
+      console.warn('⚠️  No refinement received, returning raw vision analysis')
+      return rawAnalysis
     }
+
+    const refinedAnalysis = JSON.parse(refinedContent)
+    console.log('✅ Dual-pass analysis complete')
+    return refinedAnalysis
+
+  } catch (error: any) {
+    console.warn('⚠️  Refinement pass failed, falling back to raw vision analysis:', error.message)
+    return rawAnalysis
   }
 }
 

@@ -54,10 +54,126 @@ export function getAnalyzingPrompt(): string {
   return 'Analyzing results...'
 }
 
-export function getThinkingPrompt(): string {
-  return 'Generating insights...'
-}
-
 export function getFinalProcessingPrompt(): string {
   return 'Preparing final response...'
+}
+
+export function getUXAnalysisPrompt(device: string, pageType: string, focusAreas: string[]): string {
+  return `
+      You are a senior UX and conversion optimization expert specializing in e-commerce and digital experiences.  
+      Analyze the provided webpage screenshot from a ${device} perspective.  
+      The page type is: ${pageType || 'general'}.
+      
+      Your goal is to objectively evaluate the page's **user experience, clarity, and conversion effectiveness**, 
+      focusing on checkout flows, sales pages, landing pages, and e-commerce experiences.
+      
+      ---
+      ### Focus Areas:
+      1. **Visual Design & Layout**
+         - Consistency, spacing, contrast, visual hierarchy, readability.
+      2. **Information Architecture**
+         - Logical grouping, scanning patterns, and clarity of key messages.
+      3. **Conversion Optimization**
+         - Call-to-action prominence, form usability, pricing clarity, trust signals, and urgency elements.
+      4. **Responsiveness & Accessibility**
+         - Mobile friendliness, tap targets, legibility, keyboard/screen reader readiness.
+      5. **Trust & Credibility**
+         - Social proof, reviews, payment confidence, policy visibility.
+      6. **Performance & Perceived Speed**
+         - Indicators of loading state, lazy loading, image optimization.
+      7. **User Flow**
+         - Ease of progression toward primary goal (purchase, signup, etc.).
+      ---
+      
+      ### Requirements:
+      - Be **objective** and **data-driven**, not purely aesthetic.
+      - Identify **strengths** and **weaknesses**.
+      - Every **recommendation** must point to at least one identifiable on-screen element  (e.g., "green CTA button in hero section," "pricing table header text," "email field placeholder," etc.).
+      - Provide **clear numeric scores (1–100)** for:
+        - Overall UX
+        - Visual design
+        - Conversion readiness
+        - Mobile optimization (if applicable)
+        - Focus areas: ${JSON.stringify(focusAreas || [])}
+      - Suggest **actionable, prioritized recommendations** to improve conversions and UX.
+      - It is important if you can point a specific element (a button, a header, a text etc,.) on the page that needs improvement. This will make the analysis more precise and objective.
+      
+      Return your analysis strictly in **valid JSON** format as follows:
+      
+      {
+        "overallScore": 85/100 (100 if perfect),
+        "categoryScores": {
+          "visualDesign": 80,
+          "conversionReadiness": 90,
+          "mobileOptimization": 75,
+          "trustAndCredibility": 88,
+          "accessibility": 70,
+        },
+        "summary": "Brief executive summary (2–3 sentences).",
+        "strengths": ["List of key positives"],
+        "weaknesses": ["List of key negatives"],
+        "recommendations": [
+          {
+            "title": "Action title",
+            "description": "Concise explanation of why and how to improve it",
+            "priority": "high|medium|low",
+            "expectedImpact": "Description of potential impact on conversion rate"
+          }
+        ],
+        "device": "${device}",
+        "pageType": "${pageType}",
+        "focusAreas": ${JSON.stringify(focusAreas || [])}
+      }
+      
+      ### Guidance
+      While high-level feedback is acceptable, **prioritize precision** — e.g.  
+      DO - "The green CTA button in the hero section has low contrast against the white background, making it less noticeable."
+      DONT - "Make buttons stand out more"
+      
+      If two screenshots (desktop & mobile) are provided, highlight **differences** in usability and consistency.
+      
+      `
+}
+
+export function getUXRefinementPrompt(): string {
+  return [
+    'You are a UX audit quality control specialist.',
+    'Your job is to validate and refine raw UX analysis output to ensure consistency, actionability, and structural correctness.',
+    '',
+    'Your responsibilities:',
+    '1. **Score Validation**: Ensure all scores are integers between 0-100 and logically consistent',
+    '   - Overall score should reflect category scores (not significantly higher/lower than averages)',
+    '   - Similar quality elements should have similar scores',
+    '2. **Recommendation Quality**: Every recommendation must:',
+    '   - Minimum 5 recommendations and maximum 10 recommendations',
+    '   - Reference at least one specific on-page element (e.g., "green CTA button", "email input field", "pricing table header")',
+    '   - Have clear priority ("high", "medium", or "low")',
+    '   - Include concrete expectedImpact with measurable outcomes when possible',
+    '   - Be actionable (avoid vague phrases like "could be better" or "consider improving")',
+    '   - Arrange them in order of importance (high first, medium second, low last)',
+    '3. **Structural Integrity**: Ensure JSON schema compliance:',
+    '   - All required fields present (overallScore, categoryScores, summary, strengths, weaknesses, recommendations)',
+    '   - Arrays are properly formatted (not empty unless genuinely nothing to report)',
+    '   - No duplicate recommendations',
+    '4. **Language Precision**: Normalize wording:',
+    '   - Remove hedging language ("might", "could", "possibly")',
+    '   - Use active voice ("Reduce form fields" not "Form fields could be reduced")',
+    '   - Be specific with numbers ("Increase button size by 20%" not "Make button larger")',
+    '5. **Completeness**: Fill gaps in the analysis',
+    '   - If strengths/weaknesses are missing but scores indicate them, infer and add',
+    '   - Ensure summary is 2-3 sentences and accurately reflects scores',
+    '6. **Confidence Estimation**:',
+    '   - Provide a `confidence` object with values between 0–1 for:',
+    '     - data_quality: confidence that raw data was complete and coherent',
+    '     - consistency: confidence that scores and recommendations align logically',
+    '     - clarity: confidence that the writing is precise and actionable',
+    '   - Example:',
+    '     "confidence": { "data_quality": 0.95, "consistency": 0.88, "clarity": 0.92 }',
+    '   - If uncertain, stay conservative (0.7–0.9 typical).',
+    '',
+    'INPUT: Raw UX analysis JSON (may have inconsistencies, vague language, or structural issues)',
+    'OUTPUT: Valid, refined JSON with consistent scores, specific recommendations, and proper structure',
+    '',
+    'Do NOT add new observations - only refine, validate, and normalize existing content.',
+  ].join(' ')
 }
