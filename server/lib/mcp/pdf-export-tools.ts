@@ -6,7 +6,7 @@ export const PDF_EXPORT_TOOLS = [
     type: 'function' as const,
     function: {
       name: 'export_audit_pdf',
-      description: 'Generate a professional PDF export of a UX audit report (scores, summary, recommendations with priorities, and square screenshots). Call this when the user asks to export an audit, generate a PDF, or download a report.',
+      description: 'Generate a professional PDF export of a UX audit report (scores, summary, recommendations with priorities). Call this when the user asks to export an audit, generate a PDF, or download a report.',
       parameters: {
         type: 'object',
         properties: {
@@ -62,19 +62,6 @@ export const PDF_EXPORT_TOOLS = [
                   required: ['title', 'description', 'expectedImpact', 'priority']
                 }
               },
-              screenshots: {
-                type: 'array',
-                description: 'Array of screenshot URLs to include in the PDF',
-                items: {
-                  type: 'object',
-                  properties: {
-                    url: { type: 'string', description: 'Full URL to the screenshot image' },
-                    deviceType: { type: 'string', enum: ['desktop', 'mobile', 'tablet'], description: 'Device type for the screenshot' },
-                    label: { type: 'string', description: 'Optional label for the screenshot' }
-                  },
-                  required: ['url', 'deviceType']
-                }
-              }
             },
             required: ['metadata', 'overallScore', 'summary', 'recommendations']
           }

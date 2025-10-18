@@ -2,14 +2,12 @@ import path from 'path'
 import fs from 'fs'
 import fsp from 'fs/promises'
 import { jsPDF } from 'jspdf'
-import sharp from 'sharp'
-
 export type DeviceType = 'desktop' | 'mobile' | 'tablet'
 
 export interface AuditMetadata {
   url: string
   date: string // ISO
-  deviceType: DeviceType
+  deviceType: DeviceType | 'multi-device'
   pageType?: string
 }
 
@@ -26,21 +24,14 @@ export interface Recommendation {
   priority: 'high' | 'medium' | 'low'
 }
 
-export interface Screenshot {
-  url: string        // HTTP(S) URL to an image (PNG/JPG)
-  deviceType: DeviceType
-  label?: string
-}
-
 export interface AuditReportInput {
   metadata: AuditMetadata
   overallScore: number        // 0-100
   summary: string
-  categoryScores: CategoryScore[]
+  categoryScores?: CategoryScore[]
   strengths?: string[]
   weaknesses?: string[]
   recommendations: Recommendation[]
-  screenshots: Screenshot[]
 }
 
 export interface GeneratePdfResult {
@@ -85,59 +76,6 @@ async function loadLogoBase64(): Promise<string | null> {
   }
 }
 
-async function fetchImageToSquarePngBase64(urlOrPath: string, size = 500): Promise<string | null> {
-  try {
-    console.log('[PDF] Fetching screenshot from:', urlOrPath)
-    let input: Buffer
-
-    // Check if it's a local file path (starts with / or ./)
-    if (urlOrPath.startsWith('/') || urlOrPath.startsWith('./')) {
-      // Local file path - read from public directory
-      const publicDir = path.resolve(process.cwd(), 'public')
-      const filePath = urlOrPath.startsWith('/') 
-        ? path.join(publicDir, urlOrPath)
-        : path.resolve(urlOrPath)
-      
-      console.log('[PDF] Reading local file:', filePath)
-      
-      if (!fs.existsSync(filePath)) {
-        console.error('[PDF] Local file not found:', filePath)
-        return null
-      }
-      
-      input = await fsp.readFile(filePath)
-      console.log('[PDF] Local file read successfully, size:', input.length)
-    } else {
-      // Remote URL - fetch via HTTP
-      const res = await fetch(urlOrPath, { method: 'GET' })
-      if (!res.ok) {
-        console.error('[PDF] Screenshot fetch failed:', res.status, res.statusText)
-        return null
-      }
-      const contentType = res.headers.get('content-type') || ''
-      console.log('[PDF] Screenshot content-type:', contentType)
-      if (!contentType.includes('image')) {
-        console.error('[PDF] Invalid content type for screenshot:', contentType)
-        return null
-      }
-
-      const arrBuf = await res.arrayBuffer()
-      input = Buffer.from(arrBuf)
-    }
-
-    // Resize and convert to square PNG
-    const sq = await sharp(input)
-      .resize(size, size, { fit: 'cover', position: 'centre' })
-      .png({ quality: 90 })
-      .toBuffer()
-
-    console.log('[PDF] Screenshot processed successfully, size:', sq.length)
-    return `data:image/png;base64,${sq.toString('base64')}`
-  } catch (err) {
-    console.error('[PDF] Screenshot processing error:', err)
-    return null
-  }
-}
 
 function nowTimestamp() {
   const d = new Date()
@@ -457,56 +395,6 @@ export async function generateAuditReportPDF(audit: AuditReportInput): Promise<G
     y += 15
   }
 
-  y = ensureSpace(doc, 24, y + 8, margin)
-
-  // Screenshots
-  if (audit.screenshots?.length) {
-    y = addSectionTitle(doc, 'Screenshots', margin, y)
-    y += 8
-
-    const cellSize = 160 // image square
-    const labelH = 14
-    const gap = 16
-    const cellsPerRow = Math.floor((pageWidth - margin * 2 + gap) / (cellSize + gap)) || 2
-    let col = 0
-
-    for (const shot of audit.screenshots) {
-      // Download/crop/resize now
-      const base64 = await fetchImageToSquarePngBase64(shot.url, 500)
-      if (!base64) {
-        // Skip invalid image
-        continue
-      }
-
-      // Ensure enough vertical space
-      const neededH = cellSize + labelH + 10
-      if (y + neededH > pageHeight - margin) {
-        doc.addPage()
-        y = margin
-        col = 0
-      }
-
-      const x = margin + col * (cellSize + gap)
-      doc.addImage(base64, 'PNG', x, y, cellSize, cellSize, undefined, 'FAST')
-
-      // Label
-      doc.setFont('helvetica', 'normal')
-      doc.setFontSize(10)
-      doc.setTextColor(COLORS.muted)
-      const label = shot.label || shot.deviceType || ''
-      doc.text(label, x, y + cellSize + 12)
-
-      col++
-      if (col >= cellsPerRow) {
-        col = 0
-        y += neededH + gap
-      }
-    }
-
-    if (col !== 0) {
-      y += cellSize + labelH + gap
-    }
-  }
 
   // Footer across all pages
   const disclaimer = 'This automated UX audit is provided for informational purposes. Please review recommendations carefully before implementation.'
