@@ -45,7 +45,7 @@
                           class="group block rounded-lg border border-border overflow-hidden bg-bg-soft w-64 h-64 md:w-80 md:h-80">
                     <img :src="asset.screenshotUrl" alt="Website screenshot"
                          class="w-full h-full object-cover transition-transform duration-200 group-hover:scale-[1.02]"
-                         @load="scrollToBottom" />
+                         @load="onImageLoad" />
                   </button>
                   <div class="text-xs text-muted mt-1 capitalize">{{
                       asset.uxAnalysis?.device ? (asset.uxAnalysis.device + ' screenshot') : 'Screenshot'
@@ -230,6 +230,7 @@ const sessionId = ref<string>('')
 const prompt = ref('')
 const loading = ref(false)
 const loadingOlder = ref(false)
+const shouldAutoScroll = ref(true) // Flag to control auto-scroll behavior
 const uploadedImage = ref<string | null>(null)
 const imagePreviewUrl = ref<string | null>(null)
 const fileInputRef = ref<HTMLInputElement | null>(null)
@@ -277,15 +278,22 @@ function scrollToBottom() {
   })
 }
 
-// Only auto-scroll when not typing
+function onImageLoad() {
+  // Only scroll to bottom if we're not loading older messages
+  if (!loadingOlder.value && shouldAutoScroll.value) {
+    scrollToBottom()
+  }
+}
+
+// Only auto-scroll when not typing AND not loading older messages
 watch(messages, () => {
-  if (!isTyping.value) {
+  if (!isTyping.value && !loadingOlder.value && shouldAutoScroll.value) {
     scrollToBottom()
   }
 }, { deep: true })
 
 watch(loading, () => {
-  if (!isTyping.value) {
+  if (!isTyping.value && !loadingOlder.value && shouldAutoScroll.value) {
     nextTick(scrollToBottom)
   }
 })
@@ -324,36 +332,80 @@ watch(() => props.loadSessionId, async (newSessionId, oldSessionId) => {
 }, { immediate: true })
 
 // Infinite scroll for loading older messages
-let scrollHandler: (() => void) | null = null
-let scrollTimeout: NodeJS.Timeout | null = null
+let scrollTimeout: number | null = null
+const TOP_SCROLL_THRESHOLD = 100
 
-onMounted(() => {
-  const container = props.scrollContainer
-  if (!container) return
-  
-  scrollHandler = () => {
-    if (scrollTimeout) clearTimeout(scrollTimeout)
-    scrollTimeout = setTimeout(async () => {
+let currentScrollContainer: HTMLElement | null = null
+let currentScrollListener: ((e: Event) => void) | null = null
+
+function detachScrollListener() {
+  if (currentScrollContainer && currentScrollListener) {
+    currentScrollContainer.removeEventListener('scroll', currentScrollListener as EventListener)
+  }
+  currentScrollContainer = null
+  currentScrollListener = null
+}
+
+function attachScrollListener(el: HTMLElement) {
+  detachScrollListener()
+  currentScrollContainer = el
+
+  currentScrollListener = () => {
+    if (!currentScrollContainer) return
+
+    // Throttle using existing scrollTimeout
+    if (scrollTimeout) return
+    scrollTimeout = window.setTimeout(async () => {
+      scrollTimeout = null
+      if (!currentScrollContainer) return
       if (loadingOlder.value || !hasMore.value) return
-      
-      const scrollTop = container.scrollTop
-      if (scrollTop < 100) {
-        // Near top, load more
+
+      // Within 100px of top? Load older messages
+      if (currentScrollContainer.scrollTop <= TOP_SCROLL_THRESHOLD) {
         await loadOlderMessages()
       }
-    }, 150) // Debounce 150ms
+    }, 150)
   }
-  
-  container.addEventListener('scroll', scrollHandler)
-})
+
+  el.addEventListener('scroll', currentScrollListener as EventListener, { passive: true })
+}
+
+// React to the scrollContainer ref availability/changes
+watch(
+  () => props.scrollContainer,
+  (el, prev) => {
+    // Clean up old listener if container changed or became null
+    if (prev && prev !== el) {
+      detachScrollListener()
+    }
+    if (!el) {
+      // Container not mounted yet or got removed
+      detachScrollListener()
+      return
+    }
+    // Attach to new container
+    attachScrollListener(el as HTMLElement)
+  },
+  { immediate: true }
+)
 
 // Load older messages with scroll position preservation
 async function loadOlderMessages() {
   if (!oldestMessageId.value || !sessionId.value || loadingOlder.value) return
   
+  // Disable auto-scroll during this operation
+  shouldAutoScroll.value = false
   loadingOlder.value = true
+  
   const container = props.scrollContainer
-  const previousScrollHeight = container?.scrollHeight || 0
+  if (!container) {
+    loadingOlder.value = false
+    shouldAutoScroll.value = true
+    return
+  }
+  
+  const previousScrollHeight = container.scrollHeight
+  const previousScrollTop = container.scrollTop
   
   try {
     const response = await fetch(
@@ -367,19 +419,39 @@ async function loadOlderMessages() {
       hasMore.value = data.hasMore || false
       oldestMessageId.value = data.messages[0]?.id || null
       
-      // Preserve scroll position
+      // Wait for DOM to update, then preserve scroll position
       await nextTick()
-      if (container) {
-        const newScrollHeight = container.scrollHeight
-        container.scrollTop = newScrollHeight - previousScrollHeight
-      }
+      
+      // Use requestAnimationFrame to ensure scroll happens after browser layout
+      await new Promise<void>(resolve => {
+        requestAnimationFrame(() => {
+          if (container) {
+            const newScrollHeight = container.scrollHeight
+            const heightDifference = newScrollHeight - previousScrollHeight
+            const newScrollTop = previousScrollTop + heightDifference
+            
+            // Maintain user's relative position by offsetting by the height added
+            container.scrollTop = newScrollTop
+            
+            // Wait one more frame to ensure scroll position is applied
+            requestAnimationFrame(() => {
+              resolve()
+            })
+          } else {
+            resolve()
+          }
+        })
+      })
     } else {
       hasMore.value = false
     }
   } catch (error) {
     console.error('Failed to load older messages:', error)
   } finally {
+    // Reset flags after scroll position is set
+    await nextTick()
     loadingOlder.value = false
+    shouldAutoScroll.value = true
   }
 }
 
@@ -393,11 +465,20 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
-  if (escHandler) window.removeEventListener('keydown', escHandler)
-  if (scrollHandler && props.scrollContainer) {
-    props.scrollContainer.removeEventListener('scroll', scrollHandler)
+  // Detach scroll listener safely
+  detachScrollListener()
+  
+  // Clear throttle timeout if pending
+  if (scrollTimeout) {
+    clearTimeout(scrollTimeout)
+    scrollTimeout = null
   }
-  if (scrollTimeout) clearTimeout(scrollTimeout)
+  
+  // Clean up Escape key listener
+  if (escHandler) {
+    window.removeEventListener('keydown', escHandler)
+    escHandler = null
+  }
 })
 
 // Utility functions
