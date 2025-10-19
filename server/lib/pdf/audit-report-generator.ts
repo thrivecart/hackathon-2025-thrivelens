@@ -22,6 +22,7 @@ export interface Recommendation {
   description: string
   expectedImpact: string
   priority: 'high' | 'medium' | 'low'
+  alternatives?: string[]  // A/B test alternatives
 }
 
 export interface DeviceAnalysis {
@@ -56,7 +57,11 @@ const COLORS = {
   lightBg: '#F9FAFB',
   high: '#EF4444',
   medium: '#F59E0B',
-  low: '#10B981'
+  low: '#10B981',
+  excellent: '#10B981',  // Green
+  strong: '#3B82F6',     // Blue
+  needsPolish: '#F59E0B', // Amber
+  needsWork: '#EF4444'   // Red
 }
 
 function sanitizeDomain(url: string): string {
@@ -131,7 +136,9 @@ function addProgressBar(doc: jsPDF, x: number, y: number, width: number, height:
 
 function ensureSpace(doc: jsPDF, needed: number, y: number, margin: number): number {
   const pageHeight = doc.internal.pageSize.getHeight()
-  if (y + needed > pageHeight - margin) {
+  // Reserve 70pt for footer (footer line starts at pageHeight - margin - 20, plus content below)
+  const footerReserve = 70
+  if (y + needed > pageHeight - margin - footerReserve) {
     doc.addPage()
     return margin
   }
@@ -175,6 +182,14 @@ function normalizePriority(priority?: string): 'high' | 'medium' | 'low' {
 
 function capitalizeFirst(str: string): string {
   return str.charAt(0).toUpperCase() + str.slice(1)
+}
+
+// Score band helpers
+function getScoreBand(score: number): { label: string; color: string } {
+  if (score >= 80) return { label: 'Excellent', color: COLORS.excellent }
+  if (score >= 60) return { label: 'Strong', color: COLORS.strong }
+  if (score >= 40) return { label: 'Needs Polish', color: COLORS.needsPolish }
+  return { label: 'Needs Work', color: COLORS.needsWork }
 }
 
 export async function generateAuditReportPDF(audit: AuditReportInput): Promise<GeneratePdfResult> {
@@ -232,15 +247,21 @@ export async function generateAuditReportPDF(audit: AuditReportInput): Promise<G
   y = addSectionTitle(doc, 'Executive Summary', margin, y)
   y += 20
 
-  // Combined Score
+  // Combined Score with band
+  const combinedBand = getScoreBand(audit.combinedScore)
   doc.setFont('helvetica', 'bold')
   doc.setTextColor(COLORS.text)
   doc.setFontSize(12)
   doc.text(`Overall UX Score: ${Math.round(audit.combinedScore)}/100`, margin, y)
+  
+  // Score band label
+  doc.setTextColor(combinedBand.color)
+  doc.setFontSize(11)
+  doc.text(`— ${combinedBand.label}`, margin + 180, y)
 
-  // Score progress bar
+  // Score progress bar with band color
   y += 10
-  addProgressBar(doc, margin, y, 240, 12, audit.combinedScore, ACCENT)
+  addProgressBar(doc, margin, y, 240, 12, audit.combinedScore, combinedBand.color)
   y += 35
 
   // Combined summary paragraph
@@ -262,12 +283,20 @@ export async function generateAuditReportPDF(audit: AuditReportInput): Promise<G
     doc.text(deviceTitle, margin, y)
     y += 20
     
-    // Device score
+    // Device score with band
+    const deviceBand = getScoreBand(deviceAnalysis.overallScore)
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(12)
     doc.text(`${capitalizeFirst(deviceAnalysis.deviceType)} Score: ${Math.round(deviceAnalysis.overallScore)}/100`, margin, y)
+    
+    // Score band label
+    doc.setTextColor(deviceBand.color)
+    doc.setFontSize(10)
+    doc.text(`— ${deviceBand.label}`, margin + 160, y)
+    doc.setTextColor(COLORS.text)
+    
     y += 10
-    addProgressBar(doc, margin, y, 200, 10, deviceAnalysis.overallScore, ACCENT)
+    addProgressBar(doc, margin, y, 200, 10, deviceAnalysis.overallScore, deviceBand.color)
     y += 25
     
     // Device summary
@@ -387,7 +416,34 @@ export async function generateAuditReportPDF(audit: AuditReportInput): Promise<G
     doc.setFontSize(11)
     const impactLines = doc.splitTextToSize(rec.expectedImpact || 'Not specified.', cardW - 100)
     doc.text(impactLines, cardX + 100, y)
-    y += impactLines.length * 14 + 10
+    y += impactLines.length * 14 + 8
+
+    // A/B Test Alternatives (if available)
+    if (rec.alternatives && rec.alternatives.length > 0) {
+      y = ensureSpace(doc, 60, y, margin)
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(10)
+      doc.setTextColor(COLORS.muted)
+      doc.text('A/B Test Alternatives:', cardX, y)
+      y += 14
+      
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(10)
+      doc.setTextColor(COLORS.text)
+      
+      for (const alt of rec.alternatives) {
+        y = ensureSpace(doc, 20, y, margin)
+        // Bullet point
+        doc.setFillColor(ACCENT)
+        doc.circle(cardX + 4, y - 3, 2, 'F')
+        
+        // Alternative text (wrapped)
+        const altLines = doc.splitTextToSize(alt, cardW - 20)
+        doc.text(altLines, cardX + 12, y)
+        y += altLines.length * 12 + 4
+      }
+      y += 6
+    }
 
     // Divider
     doc.setDrawColor(COLORS.border)

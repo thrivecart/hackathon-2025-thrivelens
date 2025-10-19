@@ -6,10 +6,16 @@ export const PDF_EXPORT_TOOLS = [
     type: 'function' as const,
     function: {
       name: 'export_audit_pdf',
-      description: 'Generate a professional PDF export of a UX audit report. This tool automatically extracts all audit data from the current conversation session and creates a comprehensive PDF report. No parameters needed - it will automatically find and include all UX audits performed in this session.',
+      description: 'Generate a professional PDF export of a UX audit report. Automatically extracts audit data from the current conversation session. Can export all devices (desktop + mobile) or a specific device only.',
       parameters: {
         type: 'object',
-        properties: {},
+        properties: {
+          deviceFilter: {
+            type: 'string',
+            enum: ['all', 'desktop', 'mobile', 'tablet'],
+            description: 'Which device(s) to include in the PDF. Use "all" for all available devices (default), or specify "desktop", "mobile", or "tablet" for single-device export. Default: all'
+          }
+        },
         required: []
       }
     }
@@ -30,42 +36,80 @@ export async function callPDFExportTool(toolName: string, args: any): Promise<an
 }
 
 // Helper to extract the MOST RECENT audit for a single URL from session assets
-function extractLatestAuditFromSessionAssets(conversationHistory: Array<any>, targetUrl?: string): AuditReportInput | null {
+function extractLatestAuditFromSessionAssets(conversationHistory: Array<any>, targetUrl?: string, deviceFilter?: string): AuditReportInput | null {
   const audits: Array<any> = []
   let primaryUrl = targetUrl || ''
+  const filterDevice = deviceFilter && deviceFilter !== 'all' ? deviceFilter.toLowerCase() : null
+  let foundFirstAudit = false
   
   // Collect audits from most recent assistant messages
+  // Strategy: Keep collecting until we've checked enough messages to find all devices from the same audit session
+  let messagesWithoutAuditCount = 0
+  
   for (const message of conversationHistory.slice().reverse()) {
     if (message.role === 'assistant' && message.assets) {
+      let foundAuditInThisMessage = false
+      
       for (const asset of message.assets) {
         if (asset.uxAnalysis && asset.device) {
           const auditUrl = asset.uxAnalysis.url || asset.url || ''
+          const deviceType = asset.device.toLowerCase()
           
           // If targetUrl specified, only include matching audits
           if (targetUrl && auditUrl && !auditUrl.includes(targetUrl)) {
             continue
           }
           
-          audits.push({
-            deviceType: asset.device,
-            overallScore: asset.uxAnalysis.overallScore || 0,
-            summary: asset.uxAnalysis.summary || '',
-            categoryScores: asset.uxAnalysis.categoryScores || [],
-            strengths: asset.uxAnalysis.strengths || [],
-            weaknesses: asset.uxAnalysis.weaknesses || [],
-            recommendations: asset.uxAnalysis.recommendations || [],
-            url: auditUrl
-          })
+          // If deviceFilter specified, only include matching device
+          if (filterDevice && deviceType !== filterDevice) {
+            continue
+          }
           
+          // Set primaryUrl from first matching audit
           if (!primaryUrl && auditUrl) {
             primaryUrl = auditUrl
           }
+          
+          // Only collect audits for the same URL as the first one found
+          if (primaryUrl && auditUrl && auditUrl === primaryUrl) {
+            // Check if we already have this device (avoid duplicates)
+            const isDuplicate = audits.some(a => a.deviceType.toLowerCase() === deviceType && a.url === auditUrl)
+            if (!isDuplicate) {
+              audits.push({
+                deviceType: asset.device,
+                overallScore: asset.uxAnalysis.overallScore || 0,
+                summary: asset.uxAnalysis.summary || '',
+                categoryScores: asset.uxAnalysis.categoryScores || [],
+                strengths: asset.uxAnalysis.strengths || [],
+                weaknesses: asset.uxAnalysis.weaknesses || [],
+                recommendations: asset.uxAnalysis.recommendations || [],
+                url: auditUrl
+              })
+              foundFirstAudit = true
+              foundAuditInThisMessage = true
+            }
+          } else if (primaryUrl && auditUrl && auditUrl !== primaryUrl) {
+            // Found an audit for a different URL - stop collecting
+            messagesWithoutAuditCount = 999 // Force break
+            break
+          }
         }
       }
+      
+      // Track messages without relevant audits
+      if (!foundAuditInThisMessage && foundFirstAudit) {
+        messagesWithoutAuditCount++
+      } else if (foundAuditInThisMessage) {
+        messagesWithoutAuditCount = 0 // Reset counter when we find audits
+      }
+    } else if (foundFirstAudit) {
+      // Non-assistant message after finding audits
+      messagesWithoutAuditCount++
     }
     
-    // If we found audits for this URL, stop (we want most recent only)
-    if (audits.length > 0 && primaryUrl) {
+    // Stop after we've gone through 2 messages without finding relevant audits for the primary URL
+    // This ensures we collect all devices from the same audit session
+    if (messagesWithoutAuditCount >= 2) {
       break
     }
   }
@@ -96,10 +140,15 @@ function extractLatestAuditFromSessionAssets(conversationHistory: Array<any>, ta
 }
 
 // Export audit PDF implementation
-async function exportAuditPdf(args: { audit?: AuditReportInput, conversationHistory?: Array<{role: string, content: string}> }): Promise<any> {
+async function exportAuditPdf(args: { audit?: AuditReportInput, conversationHistory?: Array<{role: string, content: string}>, deviceFilter?: string }): Promise<any> {
   try {
-    let { audit } = args
+    let { audit, deviceFilter } = args
     const { conversationHistory } = args
+    
+    // Log device filter for debugging
+    if (deviceFilter) {
+      console.log(`[PDF_EXPORT] Device filter requested: ${deviceFilter}`)
+    }
     
     // If no audit data provided directly, try to extract from conversation history
     if (!audit && conversationHistory) {
@@ -121,9 +170,10 @@ async function exportAuditPdf(args: { audit?: AuditReportInput, conversationHist
       // If still no audit, try to extract most recent audit from session assets
       if (!audit) {
         console.log('[PDF_EXPORT] Attempting to extract most recent audit data from session assets')
-        audit = extractLatestAuditFromSessionAssets(conversationHistory)
+        audit = extractLatestAuditFromSessionAssets(conversationHistory, undefined, deviceFilter)
         if (audit) {
-          console.log(`[PDF_EXPORT] Successfully extracted audit data: ${audit.metadata.url} - ${audit.deviceAnalyses.length} device(s), ${audit.deviceAnalyses.reduce((sum, d) => sum + d.recommendations.length, 0)} total recommendations`)
+          const deviceList = audit.deviceAnalyses.map(d => d.deviceType).join(', ')
+          console.log(`[PDF_EXPORT] Successfully extracted audit data: ${audit.metadata.url} - ${audit.deviceAnalyses.length} device(s): ${deviceList}, ${audit.deviceAnalyses.reduce((sum, d) => sum + d.recommendations.length, 0)} total recommendations`)
         }
       }
     }
