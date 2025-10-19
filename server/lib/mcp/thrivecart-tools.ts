@@ -71,7 +71,32 @@ export async function callThriveCartTool(toolName: string, args: any): Promise<a
       }
       
     case 'list_transactions':
-      return await listTransactions(cleanQuery(args))
+      const txResponse = await listTransactions(cleanQuery(args))
+      
+      // Extract pagination metadata from ThriveCart API response
+      // API returns: { transactions: [...], meta: { total: 8358, results: 25 } }
+      if (txResponse?.meta) {
+        const currentPage = args.page || 1
+        const perPage = args.perPage || txResponse.meta.results || 25
+        const totalRecords = txResponse.meta.total || 0
+        const totalPages = Math.ceil(totalRecords / perPage)
+        const hasMorePages = currentPage < totalPages
+        
+        return {
+          ...txResponse,
+          _pagination: {
+            currentPage,
+            perPage,
+            totalRecords,
+            totalPages,
+            hasMorePages,
+            nextPage: hasMorePages ? currentPage + 1 : null,
+            remainingRecords: Math.max(0, totalRecords - (currentPage * perPage))
+          }
+        }
+      }
+      
+      return txResponse
       
     case 'get_customer_by_email':
       return await getCustomerByEmail(args.email)

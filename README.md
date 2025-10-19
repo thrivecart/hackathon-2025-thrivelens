@@ -18,6 +18,7 @@ ThriveLens combines OpenAI's vision and reasoning capabilities with automated sc
 
 - Node.js 18+ 
 - OpenAI API key with GPT-4V access
+- ThriveCart API key (optional, for product integration)
 
 ### Setup
 
@@ -33,10 +34,11 @@ npm install
 cp .env.example .env
 ```
 
-Edit `.env` and add your OpenAI API key:
+Edit `.env` and add your API keys:
 
 ```bash
 NUXT_OPENAI_API_KEY=your_openai_api_key_here
+NUXT_THRIVECART_API_KEY=your_thrivecart_api_key_here  # Optional
 ```
 
 3. **Start the development server:**
@@ -49,27 +51,74 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ## Usage
 
-Try these example queries in the chat interface:
+### UX Audit Examples
 
+**Website Analysis:**
 - `audit https://example.com/checkout`
 - `analyze landing page https://example.com`
 - `review product page https://shop.com/product`
 - `check mobile UX https://site.com`
-- `audit homepage design https://company.com`
+
+**ThriveCart Integration:**
+- `show me my top 10 products`
+- `what are my products with their URLs?`
+- `audit the checkout page for my top product`
+- `compare the UX of my two best-selling products`
+- `which checkout drives more sales between Product A and Product B?`
+- `analyze the mobile experience of my product checkout`
+
+**Complete Workflow Example:**
+```
+You: "What are my top 2 most refunded products?"
+AI: [Analyzes refund transactions, returns Product A and Product B]
+
+You: "Audit these 2 sites for UX analysis"
+AI: [Captures screenshots and analyzes both product checkout pages]
+
+You: "Why is Product A refunded more than Product B?"
+AI: [Compares UX audits and identifies friction points causing refunds]
+```
+
+**Follow-up Questions:**
+- `what were the recommendations?`
+- `what was the score?`
+- `do you see an affiliate link in the menu?`
+- `what color is the CTA button?`
+
+**PDF Export:**
+- `export the audit as PDF`
+- `generate a PDF report for each product`
+
+**Image Analysis:**
+- Upload a screenshot and ask `analyze this checkout page`
 
 ## Features
 
-### UX Audit Tool
-- Automated screenshot capture (desktop, mobile, tablet viewports)
-- GPT-4V powered visual analysis
-- Page-type specific recommendations (checkout, landing, product, homepage)
-- Priority scoring for recommendations
-- Element-specific, actionable feedback
+### UX Audit Capabilities
+- **Automated Screenshot Capture**: Desktop, mobile, tablet viewports with Playwright
+- **Dual-Pass GPT-4V Analysis**: Initial vision analysis + refinement for accuracy
+- **Page-Type Specific Feedback**: Tailored recommendations for checkout, landing, product, homepage, signup pages
+- **Visual Question Answering**: Ask specific questions about page elements using GPT-4V
+- **Professional PDF Reports**: Export individual site audits with scores, recommendations, and insights
 
-### Smart Caching
-- Screenshot cache (6 hours) to avoid redundant captures
-- Analysis cache for faster responses
-- Efficient resource usage
+### Smart Session Management
+- **Persistent Conversations**: Server-side JSONL-based session storage
+- **Screenshot Reuse**: AI automatically references existing screenshots from session history
+- **Asset Persistence**: All screenshots and analyses saved with conversation context
+- **Follow-up Queries**: Ask questions about previous audits without re-capturing
+
+### PDF Export
+- **Individual Site Reports**: Export detailed UX audits as professional PDFs
+- **Multi-Device Analysis**: Combined desktop/mobile/tablet insights in single report
+- **Automatic Data Extraction**: AI retrieves audit data from session history
+- **Priority-Based Recommendations**: High/medium/low priority scoring with expected impact
+
+### ThriveCart Integration
+- **Product Management**: List products, get details, view pricing options
+- **Transaction Analysis**: Review charges, rebills, refunds, and cancellations
+- **Funnel Insights**: View upsells, downsells, and product flow
+- **Automated UX Audits**: AI can fetch product URLs and audit them automatically
+- **Cross-Product Comparison**: Compare UX and conversion potential across multiple products
 
 ### Modern UI
 - ChatGPT-inspired minimal design
@@ -112,11 +161,17 @@ thrivelens/
 │   │   └── chat-stream.post.ts # Main chat endpoint
 │   └── lib/
 │       ├── mcp/
-│       │   ├── ux-audit-tools.ts    # UX audit implementation
-│       │   ├── tools-registry.ts    # MCP tools router
-│       │   └── reasoning-loop.ts    # Tool execution logic
-│       └── prompts/
-│           └── thrivelens-prompts.ts # System prompts
+│       │   ├── ux-audit-tools.ts         # UX audit + screenshot capture
+│       │   ├── visual-qa-tools.ts        # Visual Q&A with GPT-4V
+│       │   ├── pdf-export-tools.ts       # PDF report generation
+│       │   ├── session-retrieval-tools.ts # Audit data retrieval
+│       │   ├── tools-registry.ts         # MCP tools router
+│       │   └── reasoning-loop.ts         # Tool execution logic
+│       ├── pdf/
+│       │   └── audit-report-generator.ts # PDF rendering with jsPDF
+│       ├── prompts/
+│       │   └── thrivelens-prompts.ts     # System prompts
+│       └── session-manager.ts            # JSONL session storage
 └── assets/
     └── styles.css              # Design system
 ```

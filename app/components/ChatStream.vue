@@ -99,7 +99,7 @@
               {{ m.displayedContent }}<span class="inline-block w-1 h-4 bg-text animate-pulse ml-0.5"></span>
             </template>
             <template v-else>
-              {{ m.content }}
+              <span v-html="linkifyContent(m.content)"></span>
             </template>
           </div>
         </div>
@@ -566,6 +566,20 @@ function removeImage() {
 // Trigger file input
 function triggerFileInput() {
   fileInputRef.value?.click()
+}
+
+// Convert URLs in text to clickable links
+function linkifyContent(text: string): string {
+  if (!text) return ''
+  
+  // Regex to match URLs (http, https, www)
+  const urlRegex = /(https?:\/\/[^\s]+)|(www\.[^\s]+)/gi
+  
+  return text.replace(urlRegex, (url) => {
+    // Add protocol if missing (for www. links)
+    const href = url.startsWith('www.') ? `https://${url}` : url
+    return `<a href="${href}" target="_blank" rel="noopener noreferrer" class="text-accent hover:underline">${url}</a>`
+  })
 }
 
 async function run() {
