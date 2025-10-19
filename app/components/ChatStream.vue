@@ -181,10 +181,14 @@
     <div v-if="lightboxUrl" class="fixed inset-0 z-50 bg-black/75 flex items-center justify-center p-4"
          @click="closeLightbox" role="dialog" aria-modal="true">
       <div class="relative" @click.stop>
-        <button class="absolute -top-3 -right-3 bg-white/90 text-gray-900 rounded-full w-8 h-8 shadow hover:bg-white"
+        <button class="absolute -top-3 -right-3 z-10 bg-white/90 text-gray-900 rounded-full w-8 h-8 shadow hover:bg-white"
                 @click="closeLightbox" aria-label="Close">✕
         </button>
-        <img :src="lightboxUrl" class="max-w-[90vw] max-h-[90vh] rounded-lg shadow-xl" alt="Screenshot preview" />
+        <!-- Scrollable container for image -->
+        <div class="overflow-auto rounded-lg shadow-xl border border-border bg-bg overscroll-contain" style="max-width: 90vw; max-height: 90vh;">
+          <img :src="lightboxUrl" alt="Screenshot preview" 
+               class="block select-none" />
+        </div>
       </div>
     </div>
   </div>
