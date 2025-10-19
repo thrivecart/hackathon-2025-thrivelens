@@ -55,8 +55,18 @@
                 <div v-if="asset.uxAnalysis" class="my-4 p-4 border border-border rounded-lg"
                      style="background: var(--bg)">
                   <div v-if="(asset.uxAnalysis.overallScore || asset.uxAnalysis.score)"
-                       class="mb-3 px-3 py-2 bg-sky-50 border border-sky-500 rounded text-sky-900 text-sm dark:bg-sky-900 dark:border-sky-400 dark:text-sky-100">
-                    <strong>UX Score: {{ asset.uxAnalysis.overallScore || asset.uxAnalysis.score }}/100</strong>
+                       class="mb-3 score-badge"
+                       :class="bandClass(asset.uxAnalysis.overallScore || asset.uxAnalysis.score)">
+                    <div class="flex items-center justify-between">
+                      <div>
+                        <div class="text-xs font-medium opacity-70 mb-1">Overall UX Score</div>
+                        <div class="flex items-baseline gap-1">
+                          <span class="score-number">{{ asset.uxAnalysis.overallScore || asset.uxAnalysis.score }}</span>
+                          <span class="score-denom">/100</span>
+                          <span class="score-label">{{ bandLabel(asset.uxAnalysis.overallScore || asset.uxAnalysis.score) }}</span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                   <div v-if="asset.uxAnalysis.summary" class="mb-4 p-3 rounded leading-relaxed"
                        style="background: var(--bg-soft)">{{ asset.uxAnalysis.summary }}
@@ -88,6 +98,16 @@
                           rec.expectedImpact || rec.impact
                                                                                                    }}
                       </div>
+                      <!-- Alternatives section -->
+                      <div v-if="rec.alternatives && rec.alternatives.length" class="mt-3 pt-3 border-t border-border">
+                        <div class="text-xs font-semibold text-text mb-2 uppercase opacity-70">A/B Test Alternatives:</div>
+                        <ul class="space-y-2">
+                          <li v-for="(alt, altIdx) in rec.alternatives" :key="altIdx" 
+                              class="text-sm text-text pl-4 relative before:content-['▸'] before:absolute before:left-0 before:text-accent before:font-bold">
+                            {{ alt }}
+                          </li>
+                        </ul>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -99,7 +119,7 @@
               {{ m.displayedContent }}<span class="inline-block w-1 h-4 bg-text animate-pulse ml-0.5"></span>
             </template>
             <template v-else>
-              <span v-html="linkifyContent(m.content)"></span>
+              <span v-html="linkifyContent(m.content, m.role)"></span>
             </template>
           </div>
         </div>
@@ -565,18 +585,98 @@ function triggerFileInput() {
   fileInputRef.value?.click()
 }
 
-// Convert URLs in text to clickable links
-function linkifyContent(text: string): string {
+// Score band helpers
+function bandClass(s: number): string {
+  if (s >= 80) return 'band-green'
+  if (s >= 60) return 'band-blue'
+  if (s >= 40) return 'band-amber'
+  return 'band-red'
+}
+
+function bandLabel(s: number): string {
+  if (s >= 80) return 'Excellent'
+  if (s >= 60) return 'Strong'
+  if (s >= 40) return 'Needs polish'
+  return 'Needs work'
+}
+
+// Convert URLs and Markdown lists to HTML
+function linkifyContent(text: string, role?: string): string {
   if (!text) return ''
   
-  // Regex to match URLs (http, https, www)
-  const urlRegex = /(https?:\/\/[^\s]+)|(www\.[^\s]+)/gi
+  // Use white text for user messages (which have accent background), accent color for others
+  const linkClass = role === 'user' ? 'text-white hover:underline' : 'text-accent hover:underline'
   
-  return text.replace(urlRegex, (url) => {
-    // Add protocol if missing (for www. links)
+  // Step 1: Convert links
+  const urlRegex = /(https?:\/\/[^\s]+)|(www\.[^\s]+)/gi
+  let formatted = text.replace(urlRegex, (url) => {
     const href = url.startsWith('www.') ? `https://${url}` : url
-    return `<a href="${href}" target="_blank" rel="noopener noreferrer" class="text-accent hover:underline">${url}</a>`
+    return `<a href="${href}" target="_blank" rel="noopener noreferrer" class="${linkClass}">${url}</a>`
   })
+  
+  // Step 2: Convert unordered lists (-, *, _)
+  // Match lines starting with -, *, or _ followed by space
+  const unorderedListRegex = /^([\-\*_])\s+(.+)$/gm
+  const ulItems: string[] = []
+  let inUl = false
+  
+  formatted = formatted.split('\n').map(line => {
+    const ulMatch = line.match(/^([\-\*_])\s+(.+)$/)
+    if (ulMatch) {
+      ulItems.push(`<li class="ml-5">${ulMatch[2]}</li>`)
+      inUl = true
+      return '___UL_ITEM___' // Placeholder
+    } else if (inUl && ulItems.length > 0) {
+      // End of list
+      const listHtml = `<ul class="list-disc my-1 ml-4">${ulItems.join('')}</ul>`
+      ulItems.length = 0
+      inUl = false
+      return line.trim() ? listHtml + '\n' + line : listHtml
+    }
+    return line
+  }).join('\n')
+  
+  // Handle case where list is at the end
+  if (ulItems.length > 0) {
+    formatted = formatted.replace(/___UL_ITEM___/g, '')
+    formatted += `<ul class="list-disc my-1 ml-4">${ulItems.join('')}</ul>`
+  } else {
+    formatted = formatted.replace(/___UL_ITEM___/g, '')
+  }
+  
+  // Step 3: Convert ordered lists (1. 2. 3.)
+  const orderedListRegex = /^\d+\.\s+(.+)$/gm
+  const olItems: string[] = []
+  let inOl = false
+  
+  formatted = formatted.split('\n').map(line => {
+    const olMatch = line.match(/^\d+\.\s+(.+)$/)
+    if (olMatch) {
+      olItems.push(`<li class="ml-5">${olMatch[1]}</li>`)
+      inOl = true
+      return '___OL_ITEM___' // Placeholder
+    } else if (inOl && olItems.length > 0) {
+      // End of list
+      const listHtml = `<ol class="list-decimal my-1 ml-4">${olItems.join('')}</ol>`
+      olItems.length = 0
+      inOl = false
+      return line.trim() ? listHtml + '\n' + line : listHtml
+    }
+    return line
+  }).join('\n')
+  
+  // Handle case where list is at the end
+  if (olItems.length > 0) {
+    formatted = formatted.replace(/___OL_ITEM___/g, '')
+    formatted += `<ol class="list-decimal my-1 ml-4">${olItems.join('')}</ol>`
+  } else {
+    formatted = formatted.replace(/___OL_ITEM___/g, '')
+  }
+  
+  // Step 4: Clean up multiple consecutive newlines (reduce to max 2)
+  formatted = formatted.replace(/\n{3,}/g, '\n\n')
+  
+  return formatted
 }
 
 async function run() {
@@ -724,3 +824,75 @@ async function run() {
   }
 }
 </script>
+
+<style scoped>
+.score-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-radius: 10px;
+  border: 1px solid rgba(0,0,0,0.08);
+  font-weight: 700;
+  line-height: 1.2;
+}
+.score-number { 
+  font-size: 28px; 
+  font-weight: 800; 
+}
+.score-denom { 
+  opacity: 0.7; 
+  font-weight: 600; 
+  font-size: 16px;
+}
+.score-label { 
+  margin-left: 8px; 
+  font-weight: 600; 
+  opacity: 0.9; 
+  font-size: 14px;
+}
+
+/* Color bands */
+.band-green { 
+  background-color: rgba(16,185,129,0.12); 
+  border-color: rgba(16,185,129,0.35); 
+  color: #0f9d75; 
+}
+.band-blue { 
+  background-color: rgba(59,130,246,0.12); 
+  border-color: rgba(59,130,246,0.35); 
+  color: #2f6df6; 
+}
+.band-amber { 
+  background-color: rgba(245,158,11,0.12); 
+  border-color: rgba(245,158,11,0.35); 
+  color: #b26b00; 
+}
+.band-red { 
+  background-color: rgba(239,68,68,0.12); 
+  border-color: rgba(239,68,68,0.35); 
+  color: #b63232; 
+}
+
+/* Dark mode adjustments */
+:root.dark .band-green {
+  background-color: rgba(16,185,129,0.15);
+  border-color: rgba(16,185,129,0.4);
+  color: #34d399;
+}
+:root.dark .band-blue {
+  background-color: rgba(59,130,246,0.15);
+  border-color: rgba(59,130,246,0.4);
+  color: #60a5fa;
+}
+:root.dark .band-amber {
+  background-color: rgba(245,158,11,0.15);
+  border-color: rgba(245,158,11,0.4);
+  color: #fbbf24;
+}
+:root.dark .band-red {
+  background-color: rgba(239,68,68,0.15);
+  border-color: rgba(239,68,68,0.4);
+  color: #f87171;
+}
+</style>
