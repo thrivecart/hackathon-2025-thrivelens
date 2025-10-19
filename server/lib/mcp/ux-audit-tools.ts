@@ -103,6 +103,42 @@ export async function callUXAuditTool(toolName: string, args: any): Promise<any>
   }
 }
 
+// Page type detection using GPT-4V
+async function detectPageType(screenshotPath: string, apiKey: string): Promise<string> {
+  const openai = new OpenAI({ apiKey })
+  const fs = await import('fs/promises')
+  const imageBuffer = await fs.readFile(join(process.cwd(), 'public', screenshotPath))
+  const base64Image = imageBuffer.toString('base64')
+  
+  const response = await openai.chat.completions.create({
+    model: 'gpt-4o',
+    max_tokens: 50,
+    temperature: 0,
+    messages: [
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'text',
+            text: 'What type of page is this? Respond with ONLY ONE WORD from: checkout, landing, product, homepage, signup, or general. No explanation needed.'
+          },
+          {
+            type: 'image_url',
+            image_url: {
+              url: `data:image/png;base64,${base64Image}`
+            }
+          }
+        ]
+      }
+    ]
+  })
+  
+  const detectedType = response.choices[0]?.message?.content?.trim().toLowerCase() || 'general'
+  const validTypes = ['checkout', 'landing', 'product', 'homepage', 'signup', 'general']
+  
+  return validTypes.includes(detectedType) ? detectedType : 'general'
+}
+
 // Website UX audit implementation
 async function auditWebsiteUX(args: {
   url: string
@@ -167,9 +203,17 @@ async function auditWebsiteUX(args: {
       throw new Error('Failed to capture screenshot after multiple attempts')
     }
 
+    // Auto-detect page type if not specified
+    let finalPageType = pageType
+    if (!args.pageType || args.pageType === 'general') {
+      console.log(`[UX_AUDIT] Detecting page type...`)
+      finalPageType = await detectPageType(screenshotPath, apiKey) as any
+      console.log(`[UX_AUDIT] Detected page type: ${finalPageType}`)
+    }
+
     // Analyze with GPT-4V (no caching - always fresh analysis)
-    console.log(`[UX_AUDIT] Analyzing UX for ${pageType} page...`)
-    const analysis = await analyzeScreenshotWithGPTV(screenshotPath, device, pageType, focusAreas, apiKey)
+    console.log(`[UX_AUDIT] Analyzing UX for ${finalPageType} page...`)
+    const analysis = await analyzeScreenshotWithGPTV(screenshotPath, device, finalPageType, focusAreas, apiKey)
 
     // Normalize analysis (handles cases where model returned JSON inside a code block)
     const normalizedAnalysis = normalizeUxAnalysis(analysis)
@@ -177,7 +221,7 @@ async function auditWebsiteUX(args: {
     return {
       success: true,
       url,
-      pageType,
+      pageType: finalPageType,
       device,
       viewport,
       screenshotPath,
@@ -185,7 +229,7 @@ async function auditWebsiteUX(args: {
       recommendations: Array.isArray(normalizedAnalysis?.recommendations) ? normalizedAnalysis.recommendations : [],
       score: normalizedAnalysis?.overallScore ?? normalizedAnalysis?.score ?? null,
       focusAreas,
-      message: `UX audit completed for ${pageType} page`
+      message: `UX audit completed for ${finalPageType} page`
     }
 
   } catch (error: any) {

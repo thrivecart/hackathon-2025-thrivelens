@@ -501,11 +501,15 @@ function startTypingAnimation(msgIndex: number, content: string) {
     if (currentIndex < content.length) {
       const nextIndex = Math.min(currentIndex + chunkSize, content.length)
       const displayText = content.substring(0, nextIndex)
-      messages.value[msgIndex].displayedContent = displayText
+      if (messages.value[msgIndex]) {
+        messages.value[msgIndex].displayedContent = displayText
+      }
       currentIndex = nextIndex
     } else {
-      messages.value[msgIndex].isTyping = false
-      messages.value[msgIndex].displayedContent = content
+      if (messages.value[msgIndex]) {
+        messages.value[msgIndex].isTyping = false
+        messages.value[msgIndex].displayedContent = content
+      }
       isTyping.value = false
       clearInterval(typeInterval)
     }
@@ -697,8 +701,10 @@ async function run() {
       startTypingAnimation(msgIndex, content)
     } else {
       // No text content, just show assets
-      messages.value[msgIndex].isTyping = false
-      messages.value[msgIndex].displayedContent = content
+      if (messages.value[msgIndex]) {
+        messages.value[msgIndex].isTyping = false
+        messages.value[msgIndex].displayedContent = content
+      }
     }
 
   } catch (e: any) {
