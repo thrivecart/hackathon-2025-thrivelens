@@ -171,9 +171,6 @@
             </button>
           </div>
         </div>
-        <div class="text-xs text-center text-muted mt-1.5">ThriveLens may not always be accurate. Please review
-                                                                results carefully.
-        </div>
       </div>
     </div>
 
