@@ -13,6 +13,13 @@ ThriveLens combines OpenAI's vision and reasoning capabilities with automated sc
 - **Trust & Credibility**: Social proof, payment security, policy visibility, testimonials
 - **Accessibility**: WCAG compliance, keyboard navigation, screen reader support (lower priority for checkout pages)
 
+### Score Bands
+Every audit receives a contextual score interpretation:
+- **Excellent** (80+): Outstanding UX with minimal friction
+- **Strong** (60-79): Good experience with room for optimization
+- **Needs Polish** (40-59): Functional but requires significant improvements
+- **Needs Work** (<40): Major UX issues impacting conversions
+
 
 ## Quick Start
 
@@ -69,18 +76,6 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 - `which checkout drives more sales between Product A and Product B?`
 - `analyze the mobile experience of my product checkout`
 
-**Complete Workflow Example:**
-```
-You: "What are my top 2 most refunded products?"
-AI: [Analyzes refund transactions, returns Product A and Product B]
-
-You: "Audit these 2 sites for UX analysis"
-AI: [Captures screenshots and analyzes both product checkout pages]
-
-You: "Why is Product A refunded more than Product B?"
-AI: [Compares UX audits and identifies friction points causing refunds]
-```
-
 **Follow-up Questions:**
 - `what were the recommendations?`
 - `what was the score?`
@@ -89,6 +84,8 @@ AI: [Compares UX audits and identifies friction points causing refunds]
 
 **PDF Export:**
 - `export the audit as PDF`
+- `export desktop PDF only`
+- `export combined desktop and mobile report`
 - `generate a PDF report for each product`
 
 **Image Analysis:**
@@ -149,8 +146,10 @@ ThriveLens combines ThriveCart business data with automated UX analysis to help 
 - **Automated Screenshot Capture**: Desktop, mobile, tablet viewports with Playwright
 - **Dual-Pass GPT-4V Analysis**: Initial vision analysis + refinement for accuracy
 - **Page-Type Specific Feedback**: Tailored recommendations for checkout, landing, product, homepage, signup pages
-- **Visual Question Answering**: Ask specific questions about page elements using GPT-4V
-- **Professional PDF Reports**: Export individual site audits with scores, recommendations, and insights
+- **Score Bands**: Contextual interpretation (Excellent/Strong/Needs Polish/Needs Work) with standout categories
+- **A/B Test Alternatives**: Each HIGH priority recommendation includes 3-5 specific alternatives with expected impact ranges
+- **Enhanced Visual Question Answering**: Ask specific questions about page elements with comprehensive content/messaging analysis
+- **Professional PDF Reports**: Export device-specific or combined reports with color-coded score bands and alternative recommendations
 
 ### Smart Session Management
 - **Persistent Conversations**: Server-side JSONL-based session storage
@@ -159,10 +158,12 @@ ThriveLens combines ThriveCart business data with automated UX analysis to help 
 - **Follow-up Queries**: Ask questions about previous audits without re-capturing
 
 ### PDF Export
-- **Individual Site Reports**: Export detailed UX audits as professional PDFs
-- **Multi-Device Analysis**: Combined desktop/mobile/tablet insights in single report
+- **Device-Filtered Reports**: Export desktop-only, mobile-only, tablet-only, or combined multi-device reports
+- **Score Bands**: Color-coded labels (Excellent/Strong/Needs Polish/Needs Work) with visual progress bars
+- **Alternative Recommendations**: HIGH priority items include 3-5 A/B test alternatives with expected impact
 - **Automatic Data Extraction**: AI retrieves audit data from session history
-- **Priority-Based Recommendations**: High/medium/low priority scoring with expected impact
+- **Priority-Based Structure**: Recommendations ordered by impact (conversion-first, then design, then accessibility)
+- **Smart Pagination**: Footer clearance ensures content never overlaps with page footers
 
 ### ThriveCart Integration
 - **Product Management**: List products, get details, view pricing options
