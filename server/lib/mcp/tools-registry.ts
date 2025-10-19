@@ -4,6 +4,7 @@ import { callUXAuditTool, UX_AUDIT_TOOLS, UX_AUDIT_TOOL_NAMES } from './ux-audit
 import { callPDFExportTool, PDF_EXPORT_TOOLS, PDF_EXPORT_TOOL_NAMES } from './pdf-export-tools'
 import { callSessionRetrievalTool, SESSION_RETRIEVAL_TOOLS, SESSION_RETRIEVAL_TOOL_NAMES } from './session-retrieval-tools'
 import { callVisualQATool, VISUAL_QA_TOOLS, VISUAL_QA_TOOL_NAMES } from './visual-qa-tools'
+import { callThriveCartTool, THRIVECART_TOOLS, THRIVECART_TOOL_NAMES } from './thrivecart-tools'
 // Import other MCP tool handlers here as needed:
 // import { callStripeTool, STRIPE_TOOLS, STRIPE_TOOL_NAMES } from './stripe-tools'
 // import { callSlackTool, SLACK_TOOLS, SLACK_TOOL_NAMES } from './slack-tools'
@@ -14,6 +15,7 @@ export const ALL_TOOL_DEFINITIONS = [
   ...PDF_EXPORT_TOOLS,
   ...SESSION_RETRIEVAL_TOOLS,
   ...VISUAL_QA_TOOLS,
+  ...THRIVECART_TOOLS,
   // ...STRIPE_TOOLS,      // Add when Stripe tools are created
   // ...SLACK_TOOLS,       // Add when Slack tools are created
 ]
@@ -49,6 +51,11 @@ export async function routeToolCall(toolName: string, args: any, sessionId?: str
     return await callVisualQATool(toolName, args, sessionId)
   }
   
+  // Route to ThriveCart tools
+  if (THRIVECART_TOOL_NAMES.includes(toolName)) {
+    return await callThriveCartTool(toolName, args)
+  }
+  
   // Route to Stripe tools (when implemented)
   // if (STRIPE_TOOL_NAMES.includes(toolName)) {
   //   return await callStripeTool(toolName, args)
@@ -63,10 +70,12 @@ export async function routeToolCall(toolName: string, args: any, sessionId?: str
 }
 
 // Get tools for specific services (useful for context-specific prompts)
-export function getToolsForService(serviceName: 'ux-audit' | 'stripe' | 'slack' | 'all' = 'all') {
+export function getToolsForService(serviceName: 'ux-audit' | 'thrivecart' | 'stripe' | 'slack' | 'all' = 'all') {
   switch (serviceName) {
     case 'ux-audit':
       return UX_AUDIT_TOOLS
+    case 'thrivecart':
+      return THRIVECART_TOOLS
     // case 'stripe':
     //   return STRIPE_TOOLS
     // case 'slack':
@@ -84,6 +93,7 @@ export function getAvailableToolNames(): string[] {
     ...PDF_EXPORT_TOOL_NAMES,
     ...SESSION_RETRIEVAL_TOOL_NAMES,
     ...VISUAL_QA_TOOL_NAMES,
+    ...THRIVECART_TOOL_NAMES,
     // ...STRIPE_TOOL_NAMES,    // Add when implemented
     // ...SLACK_TOOL_NAMES,     // Add when implemented
   ]

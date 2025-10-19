@@ -8,6 +8,11 @@ export default defineNuxtConfig({
     openai: {
       apiKey: process.env.NUXT_OPENAI_API_KEY
     },
+    thrivecart: {
+      apiKey: process.env.NUXT_THRIVECART_API_KEY,
+      baseUrl: process.env.NUXT_THRIVECART_BASE_URL || 'https://thrivecart.com',
+      mode: process.env.NUXT_THRIVECART_MODE || 'live'
+    },
     public: {
       appName: 'Thrivelens'
     }
