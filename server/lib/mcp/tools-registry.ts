@@ -2,6 +2,7 @@
 
 import { callUXAuditTool, UX_AUDIT_TOOLS, UX_AUDIT_TOOL_NAMES } from './ux-audit-tools'
 import { callPDFExportTool, PDF_EXPORT_TOOLS, PDF_EXPORT_TOOL_NAMES } from './pdf-export-tools'
+import { callSessionRetrievalTool, SESSION_RETRIEVAL_TOOLS, SESSION_RETRIEVAL_TOOL_NAMES } from './session-retrieval-tools'
 // Import other MCP tool handlers here as needed:
 // import { callStripeTool, STRIPE_TOOLS, STRIPE_TOOL_NAMES } from './stripe-tools'
 // import { callSlackTool, SLACK_TOOLS, SLACK_TOOL_NAMES } from './slack-tools'
@@ -10,12 +11,14 @@ import { callPDFExportTool, PDF_EXPORT_TOOLS, PDF_EXPORT_TOOL_NAMES } from './pd
 export const ALL_TOOL_DEFINITIONS = [
   ...UX_AUDIT_TOOLS,
   ...PDF_EXPORT_TOOLS,
+  ...SESSION_RETRIEVAL_TOOLS,
   // ...STRIPE_TOOLS,      // Add when Stripe tools are created
   // ...SLACK_TOOLS,       // Add when Slack tools are created
 ]
 
 // Central tool router - determines which MCP handler to use
-export async function routeToolCall(toolName: string, args: any): Promise<any> {
+// sessionId is injected by the reasoning loop for session-aware tools
+export async function routeToolCall(toolName: string, args: any, sessionId?: string): Promise<any> {
   // Route to UX Audit tools
   if (UX_AUDIT_TOOL_NAMES.includes(toolName)) {
     return await callUXAuditTool(toolName, args)
@@ -24,6 +27,14 @@ export async function routeToolCall(toolName: string, args: any): Promise<any> {
   // Route to PDF Export tools
   if (PDF_EXPORT_TOOL_NAMES.includes(toolName)) {
     return await callPDFExportTool(toolName, args)
+  }
+  
+  // Route to Session Retrieval tools
+  if (SESSION_RETRIEVAL_TOOL_NAMES.includes(toolName)) {
+    if (!sessionId) {
+      throw new Error('Session retrieval tools require sessionId')
+    }
+    return await callSessionRetrievalTool(toolName, args, sessionId)
   }
   
   // Route to Stripe tools (when implemented)
@@ -59,6 +70,7 @@ export function getAvailableToolNames(): string[] {
   return [
     ...UX_AUDIT_TOOL_NAMES,
     ...PDF_EXPORT_TOOL_NAMES,
+    ...SESSION_RETRIEVAL_TOOL_NAMES,
     // ...STRIPE_TOOL_NAMES,    // Add when implemented
     // ...SLACK_TOOL_NAMES,     // Add when implemented
   ]
