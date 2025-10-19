@@ -32,6 +32,9 @@ export async function callThriveCartTool(toolName: string, args: any): Promise<a
     case 'list_products':
       return await getProducts({ status: args.status || 'live' })
       
+    case 'get_product':
+      return await getProduct(args.id, { mode: args.mode })
+      
     case 'get_product_pricing_by_name':
       // Find product by name first, then get pricing
       const productsForName = await getProducts({ status: 'live' })
@@ -79,19 +82,28 @@ export async function callThriveCartTool(toolName: string, args: any): Promise<a
     case 'list_upsells':
       return await getUpsells({})
       
+    case 'get_upsell_pricing':
+      return await getUpsellPricing(args.id, { mode: args.mode })
+      
     case 'list_bumps':
       return await getBumps({})
       
+    case 'get_bump_pricing':
+      return await getBumpPricing(args.id, { mode: args.mode })
+      
     case 'list_downsells':
       return await getDownsells({})
+      
+    case 'get_downsell_pricing':
+      return await getDownsellPricing(args.id, { mode: args.mode })
       
     default:
       throw new Error(`Unknown ThriveCart tool: ${toolName}`)
   }
 }
 
-// ThriveCart tool definitions
-export const THRIVECART_TOOLS = [
+// ThriveCart tool definitions (all available tools)
+const THRIVECART_ALL_TOOLS = [
   {
     type: 'function',
     function: {
@@ -102,6 +114,21 @@ export const THRIVECART_TOOLS = [
         properties: {
           status: { type: 'string', enum: ['live', 'test'] }
         }
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_product',
+      description: 'Get detailed information for a specific product by ID',
+      parameters: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'The product ID' },
+          mode: { type: 'string', enum: ['live', 'test'], description: 'Optional mode override' }
+        },
+        required: ['id']
       }
     }
   },
@@ -177,11 +204,41 @@ export const THRIVECART_TOOLS = [
   {
     type: 'function',
     function: {
+      name: 'get_upsell_pricing',
+      description: 'Get pricing options for a specific upsell by ID',
+      parameters: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'The upsell ID' },
+          mode: { type: 'string', enum: ['live', 'test'], description: 'Optional mode override' }
+        },
+        required: ['id']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
       name: 'list_bumps',
       description: 'List order bumps',
       parameters: {
         type: 'object',
         properties: {}
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_bump_pricing',
+      description: 'Get pricing options for a specific order bump by ID',
+      parameters: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'The bump ID' },
+          mode: { type: 'string', enum: ['live', 'test'], description: 'Optional mode override' }
+        },
+        required: ['id']
       }
     }
   },
@@ -195,17 +252,53 @@ export const THRIVECART_TOOLS = [
         properties: {}
       }
     }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_downsell_pricing',
+      description: 'Get pricing options for a specific downsell by ID',
+      parameters: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'The downsell ID' },
+          mode: { type: 'string', enum: ['live', 'test'], description: 'Optional mode override' }
+        },
+        required: ['id']
+      }
+    }
   }
 ]
 
 // ThriveCart tool names for routing
 export const THRIVECART_TOOL_NAMES = [
   'list_products',
+  'get_product',
   'get_product_pricing_by_name', 
   'list_transactions',
   'get_customer_by_email',
   'list_affiliates',
   'list_upsells',
+  'get_upsell_pricing',
   'list_bumps',
-  'list_downsells'
+  'get_bump_pricing',
+  'list_downsells',
+  'get_downsell_pricing'
 ]
+
+// Exposed ThriveCart tools (subset for AI context)
+// All tools above remain functional via routing, but only these are exposed to the AI
+const EXPOSED_TOOL_NAMES = [
+  'list_products',
+  'get_product',
+  'get_product_pricing_by_name',
+  'list_transactions',
+  'list_upsells',
+  'get_upsell_pricing',
+  'list_downsells',
+  'get_downsell_pricing'
+]
+
+export const THRIVECART_TOOLS = THRIVECART_ALL_TOOLS.filter(
+  tool => EXPOSED_TOOL_NAMES.includes(tool.function.name)
+)

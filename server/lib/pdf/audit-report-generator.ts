@@ -276,6 +276,8 @@ export async function generateAuditReportPDF(audit: AuditReportInput): Promise<G
     y += deviceSummaryLines.length * 14 + 15
     
     // Category scores for this device (if available)
+    // Note: Supports dynamic categories (e.g., contentAndMessaging added in v2)
+    // Backward compatible - older audits without new categories will still render
     if (deviceAnalysis.categoryScores?.length) {
       y = ensureSpace(doc, 24, y, margin)
       doc.setFont('helvetica', 'bold')

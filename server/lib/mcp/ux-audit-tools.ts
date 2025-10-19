@@ -650,6 +650,11 @@ function normalizeUxAnalysis(analysis: any): any {
     }))
   }
   
+  // Ensure categoryScores array exists (backward compatibility)
+  if (!analysis.categoryScores) {
+    analysis.categoryScores = []
+  }
+  
   if (!Array.isArray(analysis.recommendations)) analysis.recommendations = []
   analysis.recommendations = analysis.recommendations.map((r: any) => {
     if (!r) return r
