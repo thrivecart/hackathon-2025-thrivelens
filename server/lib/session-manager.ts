@@ -402,3 +402,68 @@ export async function findRecentScreenshot(
     messageId: sorted[0].messageId
   }
 }
+
+/**
+ * Get session metadata without loading full session history
+ * Returns first user message and last activity timestamp
+ */
+export async function getSessionMetadata(
+  sessionId: string
+): Promise<{ firstUserMessage: string; lastActivity: string } | null> {
+  if (!isValidSessionId(sessionId)) {
+    return null
+  }
+  
+  const filePath = getSessionFilePath(sessionId)
+  
+  try {
+    const content = await readFile(filePath, 'utf-8')
+    const lines = content.split('\n').filter(line => line.trim())
+    
+    if (lines.length === 0) {
+      return null
+    }
+    
+    // Find first user message
+    let firstUserMessage = 'Untitled'
+    for (const line of lines) {
+      try {
+        const message = JSON.parse(line) as SessionMessage
+        if (message.role === 'user' && message.content) {
+          firstUserMessage = message.content
+          break
+        }
+        // Fallback to first non-empty content if no user message found
+        if (!firstUserMessage && message.content) {
+          firstUserMessage = message.content
+        }
+      } catch {
+        // Skip malformed lines
+        continue
+      }
+    }
+    
+    // Get last activity from last valid line
+    let lastActivity = new Date().toISOString()
+    for (let i = lines.length - 1; i >= 0; i--) {
+      try {
+        const message = JSON.parse(lines[i]) as SessionMessage
+        if (message.timestamp) {
+          lastActivity = message.timestamp
+          break
+        }
+      } catch {
+        // Skip malformed lines
+        continue
+      }
+    }
+    
+    return { firstUserMessage, lastActivity }
+  } catch (error: any) {
+    if (error.code === 'ENOENT') {
+      return null
+    }
+    console.error(`Failed to read session metadata for ${sessionId}:`, error.message)
+    return null
+  }
+}

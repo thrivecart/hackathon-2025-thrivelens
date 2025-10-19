@@ -1,5 +1,15 @@
 <template>
   <div class="flex flex-col min-h-full">
+    <!-- Loading older messages indicator -->
+    <div v-if="loadingOlder" class="flex justify-center py-2">
+      <div class="flex items-center gap-2 text-muted text-sm">
+        <span class="w-2 h-2 bg-muted rounded-full animate-bounce" style="animation-delay:0ms"></span>
+        <span class="w-2 h-2 bg-muted rounded-full animate-bounce" style="animation-delay:150ms"></span>
+        <span class="w-2 h-2 bg-muted rounded-full animate-bounce" style="animation-delay:300ms"></span>
+        <span class="ml-1">Loading older messages...</span>
+      </div>
+    </div>
+    
     <div class="flex-1 flex flex-col items-center w-full pt-4 pb-[200px] space-y-4">
       <div v-for="m in messages" :key="m.id" class="flex gap-2.5 max-w-screen-lg w-full px-4"
            :class="m.role === 'assistant' ? 'justify-start' : 'justify-end'">
@@ -206,22 +216,29 @@ interface MessageAsset {
 }
 
 interface Message {
+  id?: string
   role: 'user' | 'assistant' | 'progress'
   content: string
   assets?: MessageAsset[]
   status?: string
   isTyping?: boolean
   displayedContent?: string
+  timestamp?: string
 }
 // Component state
 const sessionId = ref<string>('')
 const prompt = ref('')
 const loading = ref(false)
+const loadingOlder = ref(false)
 const uploadedImage = ref<string | null>(null)
 const imagePreviewUrl = ref<string | null>(null)
 const fileInputRef = ref<HTMLInputElement | null>(null)
 const lightboxUrl = ref<string | null>(null)
 const isTyping = ref(false)
+
+// Pagination state
+const hasMore = ref(false)
+const oldestMessageId = ref<string | null>(null)
 
 // Chat messages
 const messages = ref<Message[]>([
@@ -233,6 +250,11 @@ const messages = ref<Message[]>([
 
 const props = defineProps<{
   scrollContainer?: HTMLElement | null
+  loadSessionId?: string
+}>()
+
+const emit = defineEmits<{
+  'session-updated': [sessionId: string]
 }>()
 
 function openLightbox(url: string) {
@@ -268,6 +290,99 @@ watch(loading, () => {
   }
 })
 
+// Load session messages when loadSessionId changes
+watch(() => props.loadSessionId, async (newSessionId, oldSessionId) => {
+  console.log('[ChatStream] loadSessionId changed:', { newSessionId, oldSessionId })
+  
+  if (!newSessionId) {
+    // Clear messages for new session
+    messages.value = [{ role: 'assistant', content: 'How can I help you?' }]
+    sessionId.value = ''
+    hasMore.value = false
+    oldestMessageId.value = null
+    return
+  }
+  
+  if (newSessionId === oldSessionId) return
+  
+  // Load messages for the selected session
+  try {
+    const response = await fetch(`/api/sessions/${newSessionId}/messages?limit=20`)
+    const data = await response.json()
+    
+    if (data.messages && data.messages.length > 0) {
+      messages.value = data.messages
+      hasMore.value = data.hasMore || false
+      oldestMessageId.value = data.messages[0]?.id || null
+      sessionId.value = newSessionId
+      scrollToBottom()
+    }
+  } catch (error) {
+    console.error('Failed to load session messages:', error)
+    messages.value = [{ role: 'assistant', content: 'Failed to load session. Please try again.' }]
+  }
+}, { immediate: true })
+
+// Infinite scroll for loading older messages
+let scrollHandler: (() => void) | null = null
+let scrollTimeout: NodeJS.Timeout | null = null
+
+onMounted(() => {
+  const container = props.scrollContainer
+  if (!container) return
+  
+  scrollHandler = () => {
+    if (scrollTimeout) clearTimeout(scrollTimeout)
+    scrollTimeout = setTimeout(async () => {
+      if (loadingOlder.value || !hasMore.value) return
+      
+      const scrollTop = container.scrollTop
+      if (scrollTop < 100) {
+        // Near top, load more
+        await loadOlderMessages()
+      }
+    }, 150) // Debounce 150ms
+  }
+  
+  container.addEventListener('scroll', scrollHandler)
+})
+
+// Load older messages with scroll position preservation
+async function loadOlderMessages() {
+  if (!oldestMessageId.value || !sessionId.value || loadingOlder.value) return
+  
+  loadingOlder.value = true
+  const container = props.scrollContainer
+  const previousScrollHeight = container?.scrollHeight || 0
+  
+  try {
+    const response = await fetch(
+      `/api/sessions/${sessionId.value}/messages?limit=20&before=${oldestMessageId.value}`
+    )
+    const data = await response.json()
+    
+    if (data.messages && data.messages.length > 0) {
+      // Prepend older messages
+      messages.value = [...data.messages, ...messages.value]
+      hasMore.value = data.hasMore || false
+      oldestMessageId.value = data.messages[0]?.id || null
+      
+      // Preserve scroll position
+      await nextTick()
+      if (container) {
+        const newScrollHeight = container.scrollHeight
+        container.scrollTop = newScrollHeight - previousScrollHeight
+      }
+    } else {
+      hasMore.value = false
+    }
+  } catch (error) {
+    console.error('Failed to load older messages:', error)
+  } finally {
+    loadingOlder.value = false
+  }
+}
+
 // Setup keyboard listener on mount
 let escHandler: ((e: KeyboardEvent) => void) | null = null
 onMounted(() => {
@@ -276,8 +391,13 @@ onMounted(() => {
   }
   window.addEventListener('keydown', escHandler)
 })
+
 onBeforeUnmount(() => {
   if (escHandler) window.removeEventListener('keydown', escHandler)
+  if (scrollHandler && props.scrollContainer) {
+    props.scrollContainer.removeEventListener('scroll', scrollHandler)
+  }
+  if (scrollTimeout) clearTimeout(scrollTimeout)
 })
 
 // Utility functions
@@ -403,10 +523,14 @@ async function run() {
 
     const result = await response.json()
 
-    // Store sessionId from server if not already set
-    if (result.sessionId && !sessionId.value) {
-      sessionId.value = result.sessionId
-      console.log('[ChatStream] Received sessionId from server:', sessionId.value)
+    // Store sessionId from server and emit to parent
+    if (result.sessionId) {
+      if (!sessionId.value) {
+        sessionId.value = result.sessionId
+        console.log('[ChatStream] Received sessionId from server:', sessionId.value)
+      }
+      // Emit to parent so sidebar can refresh
+      emit('session-updated', result.sessionId)
     }
 
     let content = ''
