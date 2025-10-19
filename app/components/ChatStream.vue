@@ -288,8 +288,8 @@ function addUserMessage(content: string) {
 function startTypingAnimation(msgIndex: number, content: string) {
   isTyping.value = true
   
-  const chunkSize = 4
-  const typingSpeed = 50
+  const chunkSize = 7
+  const typingSpeed = 30
   let currentIndex = 0
   
   const typeInterval = setInterval(() => {

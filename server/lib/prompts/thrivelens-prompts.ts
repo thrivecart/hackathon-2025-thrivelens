@@ -14,7 +14,6 @@ export function getThrivelensSystemPrompt(): string {
     '- Trust signals and credibility elements',
     '- Call-to-action effectiveness',
     '- Form design and user flow optimization',
-    '- SEO and content accessibility',
     '',
     '=== AVAILABLE UX AUDIT TOOLS ===',
     '- audit_website_ux: Take screenshots and analyze websites for conversion optimization',
