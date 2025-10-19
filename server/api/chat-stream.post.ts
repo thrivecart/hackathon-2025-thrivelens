@@ -44,14 +44,14 @@ export default defineEventHandler(async (event) => {
   }
 
   try {
+    console.log(`[API] Chat request received (sessionId: ${sessionId || 'none'}, hasImage: ${!!imageData})`)
+    
     // Validate or create session
     if (!sessionId || !isValidSessionId(sessionId)) {
-      console.log('[Chat] Invalid or missing sessionId, creating new session')
+      console.log('[API] Invalid or missing sessionId, creating new session')
       sessionId = await createSession()
     } else if (!(await sessionExists(sessionId))) {
-      console.log('[Chat] Session does not exist, creating session file')
-      await createSession() // This will fail, so let's just create with the given ID
-      // Actually, we need to handle this differently - create with provided ID
+      console.log('[API] Session does not exist, creating new session')
       sessionId = await createSession()
     }
 
@@ -62,7 +62,7 @@ export default defineEventHandler(async (event) => {
 
     // Read session history
     const sessionHistory = await readSessionHistory(sessionId)
-    console.log(`[Chat] Loaded ${sessionHistory.length} messages from session ${sessionId}`)
+    console.log(`[API] Loaded ${sessionHistory.length} messages from session`)
 
     // Handle user-uploaded image if provided
     let userImagePath: string | undefined
@@ -78,7 +78,7 @@ export default defineEventHandler(async (event) => {
       let base64Data = imageData.replace(/^data:image\/\w+;base64,/, '')
       const buffer = Buffer.from(base64Data, 'base64')
       await writeFile(fullPath, buffer)
-      console.log(`[Chat] Saved user image to ${userImagePath}`)
+      console.log(`[API] Saved user image: ${userImagePath}`)
     }
 
     // Prepare user message (add image context if needed)
@@ -107,6 +107,7 @@ export default defineEventHandler(async (event) => {
     ]
     
     // Get initial AI response with potential tool calls
+    console.log(`[API] Calling OpenAI with ${conversationMessages.length} messages`)
     messages.push({ type: 'status', content: getStreamingStatusPrompt(), status: 'thinking' })
     
     const response = await openai.chat.completions.create({
@@ -142,6 +143,8 @@ export default defineEventHandler(async (event) => {
       12,
       sessionId // Pass sessionId for session-aware tools
     )
+    
+    console.log(`[API] Response complete, persisting to session`)
     
     messages.push({ 
       type: 'final', 

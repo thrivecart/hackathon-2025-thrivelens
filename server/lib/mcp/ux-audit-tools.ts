@@ -92,6 +92,7 @@ const DEVICE_PRESETS = {
 
 // Main tool call handler
 export async function callUXAuditTool(toolName: string, args: any): Promise<any> {
+  console.log(`[UX_AUDIT] Tool: ${toolName}`, args)
   switch (toolName) {
     case 'audit_website_ux':
       return await auditWebsiteUX(args)
@@ -134,7 +135,7 @@ async function auditWebsiteUX(args: {
     const viewport = args.viewport || DEVICE_PRESETS[device]
 
     // Take screenshot with retry logic (no caching - AI manages reuse via session history)
-    console.log(`Taking ${device} screenshot of ${url}...`)
+    console.log(`[UX_AUDIT] Taking ${device} screenshot of ${url}...`)
     let screenshotPath: string | undefined
     let retryCount = 0
     const maxRetries = 2
@@ -145,7 +146,7 @@ async function auditWebsiteUX(args: {
         break
       } catch (error: any) {
         retryCount++
-        console.log(`Screenshot attempt ${retryCount} failed: ${error.message}`)
+        console.log(`[PLAYWRIGHT] Screenshot attempt ${retryCount} failed: ${error.message}`)
 
         if (retryCount > maxRetries) {
           if (error.message.includes('Timeout')) {
@@ -167,7 +168,7 @@ async function auditWebsiteUX(args: {
     }
 
     // Analyze with GPT-4V (no caching - always fresh analysis)
-    console.log(`Analyzing UX for ${pageType} page...`)
+    console.log(`[UX_AUDIT] Analyzing UX for ${pageType} page...`)
     const analysis = await analyzeScreenshotWithGPTV(screenshotPath, device, pageType, focusAreas, apiKey)
 
     // Normalize analysis (handles cases where model returned JSON inside a code block)
@@ -358,25 +359,25 @@ async function captureScreenshot(
     
     for (const strategy of strategies) {
       try {
-        console.log(`Trying ${strategy.name} strategy...`)
+        console.log(`[PLAYWRIGHT] Trying ${strategy.name} strategy...`)
         await page.goto(url, { waitUntil: strategy.waitUntil, timeout: strategy.timeout })
         loadSuccess = true
-        console.log(`✓ Page loaded successfully with ${strategy.name} strategy`)
+        console.log(`[PLAYWRIGHT] ✓ Page loaded successfully with ${strategy.name} strategy`)
         break
       } catch (error: any) {
-        console.log(`✗ ${strategy.name} strategy failed: ${error.message}`)
+        console.log(`[PLAYWRIGHT] ✗ ${strategy.name} strategy failed: ${error.message}`)
         
         // If this is the last strategy, try one final attempt without waiting
         if (strategy === strategies[strategies.length - 1]) {
-          console.log('Attempting final fallback: basic navigation without waiting...')
+          console.log('[PLAYWRIGHT] Attempting final fallback: basic navigation without waiting...')
           try {
             await page.goto(url, { timeout: 60000 })
             // Give it a few seconds to render whatever it can
             await page.waitForTimeout(5000)
             loadSuccess = true
-            console.log('✓ Fallback navigation succeeded')
+            console.log('[PLAYWRIGHT] ✓ Fallback navigation succeeded')
           } catch (fallbackError: any) {
-            console.log(`✗ Final fallback failed: ${fallbackError.message}`)
+            console.log(`[PLAYWRIGHT] ✗ Final fallback failed: ${fallbackError.message}`)
             throw new Error(
               `Failed to load the page after trying multiple strategies. ` +
               `The website may be experiencing issues or may be very slow to load. ` +
@@ -398,10 +399,10 @@ async function captureScreenshot(
       // Try to get basic page info for context
       const title = await page.title().catch(() => 'Unknown')
       const url = page.url()
-      console.log(`✓ Successfully loaded: "${title}" at ${url}`)
+      console.log(`[PLAYWRIGHT] ✓ Successfully loaded: "${title}" at ${url}`)
     } catch {
       // Continue even if timeout fails
-      console.log('Page loaded with basic rendering - proceeding with screenshot')
+      console.log('[PLAYWRIGHT] Page loaded with basic rendering - proceeding with screenshot')
     }
     
     // Create screenshots directory if it doesn't exist
@@ -449,7 +450,7 @@ async function analyzeImageWithGPTV(
   const cleanBase64 = base64Image.replace(/^data:image\/\w+;base64,/, '')
 
   // PASS 1: GPT-4V Vision Analysis
-  console.log('🔍 Pass 1: Running GPT-4V vision analysis...')
+  console.log('[UX_AUDIT] 🔍 Pass 1: Running GPT-4V vision analysis...')
   const visionResponse = await openai.chat.completions.create({
     model: 'gpt-4o',
     max_tokens: 1500,
@@ -514,7 +515,7 @@ async function analyzeImageWithGPTV(
   }
 
   // PASS 2: GPT-4.1-mini Refinement & Validation
-  console.log('✨ Pass 2: Refining analysis with GPT-4.1-mini...')
+  console.log('[UX_AUDIT] ✨ Pass 2: Refining analysis with GPT-4.1-mini...')
   try {
     const refinementResponse = await openai.chat.completions.create({
       model: 'gpt-4.1-mini',
@@ -545,16 +546,16 @@ async function analyzeImageWithGPTV(
 
     const refinedContent = refinementResponse.choices[0]?.message?.content
     if (!refinedContent) {
-      console.warn('⚠️  No refinement received, returning raw vision analysis')
+      console.warn('[UX_AUDIT] ⚠️  No refinement received, returning raw vision analysis')
       return normalizeUxAnalysis(rawAnalysis)
     }
-
+    
     const refinedAnalysis = JSON.parse(refinedContent)
-    console.log('✅ Dual-pass analysis complete')
+    console.log('[UX_AUDIT] ✅ Dual-pass analysis complete')
     return normalizeUxAnalysis(refinedAnalysis)
 
   } catch (error: any) {
-    console.warn('⚠️  Refinement pass failed, falling back to raw vision analysis:', error.message)
+    console.warn('[UX_AUDIT] ⚠️  Refinement pass failed, falling back to raw vision analysis:', error.message)
     return normalizeUxAnalysis(rawAnalysis)
   }
 }

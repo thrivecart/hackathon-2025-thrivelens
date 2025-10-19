@@ -89,6 +89,7 @@ export const PDF_EXPORT_TOOL_NAMES = PDF_EXPORT_TOOLS.map(tool => tool.function.
 
 // Main tool call handler
 export async function callPDFExportTool(toolName: string, args: any): Promise<any> {
+  console.log(`[PDF_EXPORT] Tool: ${toolName}`)
   switch (toolName) {
     case 'export_audit_pdf':
       return await exportAuditPdf(args)
@@ -163,8 +164,11 @@ async function exportAuditPdf(args: { audit?: AuditReportInput, conversationHist
     }
 
     // Generate the PDF
+    console.log(`[PDF_EXPORT] Generating PDF for ${audit.metadata.url}`)
     const result = await generateAuditReportPDF(audit)
 
+    console.log(`[PDF_EXPORT] PDF generated successfully: ${result.filename}`)
+    
     return {
       ok: true,
       filename: result.filename,

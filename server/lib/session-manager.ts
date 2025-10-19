@@ -125,7 +125,7 @@ export async function createSession(): Promise<string> {
   try {
     // Touch the file to create it (write empty string)
     await appendFile(filePath, '')
-    console.log(`[Session] Created new session: ${sessionId}`)
+    console.log(`[SESSION] Created: ${sessionId}`)
     return sessionId
   } catch (error: any) {
     console.error('Failed to create session file:', error.message)
@@ -187,7 +187,7 @@ export async function appendMessage(
     // Append as JSONL (one line per message)
     const line = JSON.stringify(enrichedMessage) + '\n'
     await appendFile(filePath, line, 'utf-8')
-    console.log(`[Session] Appended ${message.role} message to ${sessionId} (id: ${enrichedMessage.id})`)
+    console.log(`[SESSION] Appended ${message.role} message (id: ${enrichedMessage.id.substring(0, 8)}...)`)
   } catch (error: any) {
     console.error('Failed to append message to session:', error.message)
     throw new Error('Failed to write to session file')

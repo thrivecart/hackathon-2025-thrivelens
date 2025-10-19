@@ -33,6 +33,7 @@ export async function callSessionRetrievalTool(
   args: any,
   sessionId: string
 ): Promise<any> {
+  console.log(`[SESSION_RETRIEVAL] Tool: ${toolName}`, args)
   switch (toolName) {
     case 'retrieve_audit_details':
       return await retrieveAuditDetails(args, sessionId)
@@ -135,6 +136,8 @@ async function retrieveAuditDetails(
         auditDetails.devices.length
       )
     }
+    
+    console.log(`[SESSION_RETRIEVAL] Retrieved ${auditDetails.devices.length} device audit(s)`)
     
     return {
       success: true,
