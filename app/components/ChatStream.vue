@@ -99,7 +99,7 @@
               {{ m.displayedContent }}<span class="inline-block w-1 h-4 bg-text animate-pulse ml-0.5"></span>
             </template>
             <template v-else>
-              <span v-html="linkifyContent(m.content)"></span>
+              <span v-html="linkifyContent(m.content, m.role)"></span>
             </template>
           </div>
         </div>
@@ -565,18 +565,76 @@ function triggerFileInput() {
   fileInputRef.value?.click()
 }
 
-// Convert URLs in text to clickable links
-function linkifyContent(text: string): string {
+// Convert URLs and Markdown lists to HTML
+function linkifyContent(text: string, role?: string): string {
   if (!text) return ''
   
-  // Regex to match URLs (http, https, www)
-  const urlRegex = /(https?:\/\/[^\s]+)|(www\.[^\s]+)/gi
+  // Use white text for user messages (which have accent background), accent color for others
+  const linkClass = role === 'user' ? 'text-white hover:underline' : 'text-accent hover:underline'
   
-  return text.replace(urlRegex, (url) => {
-    // Add protocol if missing (for www. links)
+  // Step 1: Convert links
+  const urlRegex = /(https?:\/\/[^\s]+)|(www\.[^\s]+)/gi
+  let formatted = text.replace(urlRegex, (url) => {
     const href = url.startsWith('www.') ? `https://${url}` : url
-    return `<a href="${href}" target="_blank" rel="noopener noreferrer" class="text-accent hover:underline">${url}</a>`
+    return `<a href="${href}" target="_blank" rel="noopener noreferrer" class="${linkClass}">${url}</a>`
   })
+  
+  // Step 2: Convert unordered lists (-, *, _)
+  const ulItems: string[] = []
+  let inUl = false
+  
+  formatted = formatted.split('\n').map(line => {
+    const ulMatch = line.match(/^([\-\*_])\s+(.+)$/)
+    if (ulMatch) {
+      ulItems.push(`<li class="ml-5">${ulMatch[2]}</li>`)
+      inUl = true
+      return '___UL_ITEM___'
+    } else if (inUl && ulItems.length > 0) {
+      const listHtml = `<ul class="list-disc my-1 ml-4">${ulItems.join('')}</ul>`
+      ulItems.length = 0
+      inUl = false
+      return line.trim() ? listHtml + '\n' + line : listHtml
+    }
+    return line
+  }).join('\n')
+  
+  if (ulItems.length > 0) {
+    formatted = formatted.replace(/___UL_ITEM___/g, '')
+    formatted += `<ul class="list-disc my-1 ml-4">${ulItems.join('')}</ul>`
+  } else {
+    formatted = formatted.replace(/___UL_ITEM___/g, '')
+  }
+  
+  // Step 3: Convert ordered lists (1. 2. 3.)
+  const olItems: string[] = []
+  let inOl = false
+  
+  formatted = formatted.split('\n').map(line => {
+    const olMatch = line.match(/^\d+\.\s+(.+)$/)
+    if (olMatch) {
+      olItems.push(`<li class="ml-5">${olMatch[1]}</li>`)
+      inOl = true
+      return '___OL_ITEM___'
+    } else if (inOl && olItems.length > 0) {
+      const listHtml = `<ol class="list-decimal my-1 ml-4">${olItems.join('')}</ol>`
+      olItems.length = 0
+      inOl = false
+      return line.trim() ? listHtml + '\n' + line : listHtml
+    }
+    return line
+  }).join('\n')
+  
+  if (olItems.length > 0) {
+    formatted = formatted.replace(/___OL_ITEM___/g, '')
+    formatted += `<ol class="list-decimal my-1 ml-4">${olItems.join('')}</ol>`
+  } else {
+    formatted = formatted.replace(/___OL_ITEM___/g, '')
+  }
+  
+  // Step 4: Clean up multiple consecutive newlines (reduce to max 2)
+  formatted = formatted.replace(/\n{3,}/g, '\n\n')
+  
+  return formatted
 }
 
 async function run() {
