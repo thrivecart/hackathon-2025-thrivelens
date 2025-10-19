@@ -122,10 +122,13 @@ export default defineEventHandler(async (event) => {
       return { messages: [{ type: 'error', content: 'Failed to get AI response' }] }
     }
 
-    // Custom router to inject full imageData for image analysis and sessionId for session-aware tools
+    // Custom router to inject full imageData for image analysis and full session history for PDF export
     const customRouter = async (toolName: string, args: any, routerSessionId?: string) => {
       if (toolName === 'analyze_image_ux' && imageData) {
         args = { ...args, imageData } // Inject full imageData
+      }
+      if (toolName === 'export_audit_pdf') {
+        args = { ...args, conversationHistory: sessionHistory } // Inject full session history with assets
       }
       return await routeToolCall(toolName, args, routerSessionId)
     }

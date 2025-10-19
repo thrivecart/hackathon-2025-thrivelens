@@ -85,7 +85,12 @@ export async function runReasoningLoop(
             content: `✓ UX audit completed - ${name === 'analyze_image_ux' ? 'Image' : 'Screenshot'} analyzed`,
             status: 'success',
             screenshotUrl: result.screenshotPath,
-            uxAnalysis: result.analysis
+            uxAnalysis: {
+              ...result.analysis,
+              url: result.url,  // Include URL for PDF export
+              device: result.device,
+              pageType: result.pageType
+            }
           })
         } else if (name === 'export_audit_pdf' && result.ok) {
           // Handle PDF export results

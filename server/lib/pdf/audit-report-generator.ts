@@ -32,6 +32,7 @@ export interface DeviceAnalysis {
   strengths?: string[]
   weaknesses?: string[]
   recommendations: Recommendation[]
+  url?: string  // URL for this specific analysis (for comparison reports)
 }
 
 export interface AuditReportInput {
@@ -257,7 +258,8 @@ export async function generateAuditReportPDF(audit: AuditReportInput): Promise<G
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(14)
     doc.setTextColor(COLORS.text)
-    doc.text(`${capitalizeFirst(deviceAnalysis.deviceType)} Analysis`, margin, y)
+    const deviceTitle = `${capitalizeFirst(deviceAnalysis.deviceType)} Analysis`
+    doc.text(deviceTitle, margin, y)
     y += 20
     
     // Device score
@@ -282,7 +284,8 @@ export async function generateAuditReportPDF(audit: AuditReportInput): Promise<G
       y = ensureSpace(doc, 24, y, margin)
       doc.setFont('helvetica', 'bold')
       doc.setFontSize(12)
-      doc.text(`${capitalizeFirst(deviceAnalysis.deviceType)} Category Scores`, margin, y)
+      const categoryTitle = `${capitalizeFirst(deviceAnalysis.deviceType)} Category Scores`
+      doc.text(categoryTitle, margin, y)
       y += 20
 
       const colWidth = (pageWidth - margin * 2 - 24) / 2

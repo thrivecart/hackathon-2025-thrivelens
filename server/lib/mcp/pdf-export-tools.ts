@@ -6,79 +6,10 @@ export const PDF_EXPORT_TOOLS = [
     type: 'function' as const,
     function: {
       name: 'export_audit_pdf',
-      description: 'Generate a professional PDF export of a UX audit report using data from a previous audit analysis. This tool can be called immediately after a UX audit in the same conversation, or later in the conversation if audit data is available in conversation history. Do NOT fabricate or make up audit data - only use real audit results.',
+      description: 'Generate a professional PDF export of a UX audit report. This tool automatically extracts all audit data from the current conversation session and creates a comprehensive PDF report. No parameters needed - it will automatically find and include all UX audits performed in this session.',
       parameters: {
         type: 'object',
-        properties: {
-          audit: {
-            type: 'object',
-            description: 'The complete UX audit payload to render into the PDF. Optional if audit data is available in conversation history.',
-            properties: {
-              metadata: {
-                type: 'object',
-                properties: {
-                  url: { type: 'string', description: 'The URL that was audited' },
-                  date: { type: 'string', description: 'ISO date string of when the audit was performed' },
-                  deviceType: { type: 'string', description: 'Primary device type or "multi-device" if multiple devices analyzed' },
-                  pageType: { type: 'string', description: 'Type of page audited (e.g., checkout, landing, product)' }
-                },
-                required: ['url', 'date', 'deviceType']
-              },
-              combinedScore: { type: 'number', description: 'Overall UX score across all devices (0-100)' },
-              combinedSummary: { type: 'string', description: 'Executive summary covering all device analyses' },
-              deviceAnalyses: {
-                type: 'array',
-                description: 'Array of device-specific analyses',
-                items: {
-                  type: 'object',
-                  properties: {
-                    deviceType: { type: 'string', enum: ['desktop', 'mobile', 'tablet'], description: 'Device type' },
-                    overallScore: { type: 'number', description: 'UX score for this device (0-100)' },
-                    summary: { type: 'string', description: 'Summary for this device' },
-                    categoryScores: {
-                      type: 'array',
-                      description: 'Category scores for this device',
-                      items: {
-                        type: 'object',
-                        properties: {
-                          name: { type: 'string', description: 'Category name' },
-                          score: { type: 'number', description: 'Category score (0-100)' }
-                        },
-                        required: ['name', 'score']
-                      }
-                    },
-                    strengths: {
-                      type: 'array',
-                      description: 'Key strengths for this device',
-                      items: { type: 'string' }
-                    },
-                    weaknesses: {
-                      type: 'array',
-                      description: 'Key weaknesses for this device',
-                      items: { type: 'string' }
-                    },
-                    recommendations: {
-                      type: 'array',
-                      description: 'UX recommendations for this device',
-                      items: {
-                        type: 'object',
-                        properties: {
-                          title: { type: 'string', description: 'Recommendation title' },
-                          description: { type: 'string', description: 'Detailed description' },
-                          expectedImpact: { type: 'string', description: 'Expected impact on conversions/UX' },
-                          priority: { type: 'string', enum: ['high', 'medium', 'low'], description: 'Priority level' }
-                        },
-                        required: ['title', 'description', 'expectedImpact', 'priority']
-                      }
-                    }
-                  },
-                  required: ['deviceType', 'overallScore', 'summary', 'recommendations']
-                }
-              },
-            },
-            required: ['metadata', 'combinedScore', 'combinedSummary', 'deviceAnalyses']
-          }
-        },
+        properties: {},
         required: []
       }
     }
@@ -98,6 +29,72 @@ export async function callPDFExportTool(toolName: string, args: any): Promise<an
   }
 }
 
+// Helper to extract the MOST RECENT audit for a single URL from session assets
+function extractLatestAuditFromSessionAssets(conversationHistory: Array<any>, targetUrl?: string): AuditReportInput | null {
+  const audits: Array<any> = []
+  let primaryUrl = targetUrl || ''
+  
+  // Collect audits from most recent assistant messages
+  for (const message of conversationHistory.slice().reverse()) {
+    if (message.role === 'assistant' && message.assets) {
+      for (const asset of message.assets) {
+        if (asset.uxAnalysis && asset.device) {
+          const auditUrl = asset.uxAnalysis.url || asset.url || ''
+          
+          // If targetUrl specified, only include matching audits
+          if (targetUrl && auditUrl && !auditUrl.includes(targetUrl)) {
+            continue
+          }
+          
+          audits.push({
+            deviceType: asset.device,
+            overallScore: asset.uxAnalysis.overallScore || 0,
+            summary: asset.uxAnalysis.summary || '',
+            categoryScores: asset.uxAnalysis.categoryScores || [],
+            strengths: asset.uxAnalysis.strengths || [],
+            weaknesses: asset.uxAnalysis.weaknesses || [],
+            recommendations: asset.uxAnalysis.recommendations || [],
+            url: auditUrl
+          })
+          
+          if (!primaryUrl && auditUrl) {
+            primaryUrl = auditUrl
+          }
+        }
+      }
+    }
+    
+    // If we found audits for this URL, stop (we want most recent only)
+    if (audits.length > 0 && primaryUrl) {
+      break
+    }
+  }
+  
+  if (audits.length === 0) {
+    return null
+  }
+  
+  // Calculate combined score (average of all device scores)
+  const combinedScore = Math.round(
+    audits.reduce((sum, a) => sum + a.overallScore, 0) / audits.length
+  )
+  
+  const deviceTypes = audits.map(a => a.deviceType).join(', ')
+  const combinedSummary = `Comprehensive UX audit analysis across ${audits.length} device${audits.length > 1 ? 's' : ''} (${deviceTypes}). Average score: ${combinedScore}/100.`
+  
+  return {
+    metadata: {
+      url: primaryUrl || 'Unknown',
+      date: new Date().toISOString(),
+      deviceType: audits.length > 1 ? 'multi-device' : audits[0].deviceType,
+      pageType: audits[0].pageType || 'general'
+    },
+    combinedScore,
+    combinedSummary,
+    deviceAnalyses: audits
+  }
+}
+
 // Export audit PDF implementation
 async function exportAuditPdf(args: { audit?: AuditReportInput, conversationHistory?: Array<{role: string, content: string}> }): Promise<any> {
   try {
@@ -106,6 +103,7 @@ async function exportAuditPdf(args: { audit?: AuditReportInput, conversationHist
     
     // If no audit data provided directly, try to extract from conversation history
     if (!audit && conversationHistory) {
+      // First try the [FULL_AUDIT_DATA:] tag format
       for (const message of conversationHistory.slice().reverse()) {
         if (message.role === 'assistant' && message.content.includes('[FULL_AUDIT_DATA:')) {
           const match = message.content.match(/\[FULL_AUDIT_DATA: (.+?)\](?:\s|$)/)
@@ -117,6 +115,15 @@ async function exportAuditPdf(args: { audit?: AuditReportInput, conversationHist
               // Continue searching if JSON parse fails
             }
           }
+        }
+      }
+      
+      // If still no audit, try to extract most recent audit from session assets
+      if (!audit) {
+        console.log('[PDF_EXPORT] Attempting to extract most recent audit data from session assets')
+        audit = extractLatestAuditFromSessionAssets(conversationHistory)
+        if (audit) {
+          console.log(`[PDF_EXPORT] Successfully extracted audit data: ${audit.metadata.url} - ${audit.deviceAnalyses.length} device(s), ${audit.deviceAnalyses.reduce((sum, d) => sum + d.recommendations.length, 0)} total recommendations`)
         }
       }
     }
@@ -142,8 +149,7 @@ async function exportAuditPdf(args: { audit?: AuditReportInput, conversationHist
     // Validate that this is real audit data, not fabricated
     if (audit.metadata.url.includes('example.com') || 
         audit.metadata.url === 'website-from-audit' ||
-        audit.combinedSummary?.includes('Generic') || 
-        audit.combinedSummary?.length < 50) {
+        audit.metadata.url === 'Unknown') {
       return {
         ok: false,
         error: 'No recent UX audit data found. Please run a website audit first, then request the PDF export.'
