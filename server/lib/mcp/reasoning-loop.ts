@@ -9,7 +9,7 @@ export interface StreamMessage {
   status?: string
 }
 
-export type ToolCallRouter = (toolName: string, args: any) => Promise<any>
+export type ToolCallRouter = (toolName: string, args: any, sessionId?: string) => Promise<any>
 
 // Generic streaming reasoning loop that works with any MCP tools
 export async function runReasoningLoop(
@@ -21,7 +21,8 @@ export async function runReasoningLoop(
   messages: StreamMessage[],
   tools: any[],
   routeToolCall: ToolCallRouter,
-  maxIterations: number = 6
+  maxIterations: number = 6,
+  sessionId?: string
 ): Promise<string> {
   const conversationHistory = [
     { role: 'system', content: systemPrompt },
@@ -69,7 +70,7 @@ export async function runReasoningLoop(
         }
         
         // Use the provided routing function to call the appropriate tool
-        const result = await routeToolCall(name, parsedArgs)
+        const result = await routeToolCall(name, parsedArgs, sessionId)
         
         toolResults.push({
           tool_call_id: toolCall.id,

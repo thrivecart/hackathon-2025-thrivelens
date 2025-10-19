@@ -6,37 +6,7 @@ import { join } from 'path'
 import { existsSync } from 'fs'
 import { getUXRefinementPrompt, getUXAnalysisPrompt } from '../prompts/thrivelens-prompts'
 
-// Simple in-memory caches (per server process)
-const SIX_HOURS = 6 * 60 * 60 * 1000
-
 type Viewport = { width: number; height: number }
-
-type ScreenshotCacheEntry = {
-  path: string
-  url: string
-  device: string
-  viewport: Viewport
-  timestamp: number
-}
-
-// key: `${url}|${device}|${viewport.width}x${viewport.height}`
-const SCREENSHOT_CACHE = new Map<string, ScreenshotCacheEntry>()
-
-// Cache UX analyses to avoid re-analyzing when focus areas/pageType repeat
-// key: `${screenshotPath}|${device}|${pageType}|${JSON.stringify(sortedFocusAreas)}`
-const ANALYSIS_CACHE = new Map<string, any>()
-
-// Cache raw vision analysis (before refinement) for debugging/comparison
-const RAW_VISION_CACHE = new Map<string, any>()
-
-function screenshotKey(url: string, device: string, viewport: Viewport) {
-  return `${url}|${device}|${viewport.width}x${viewport.height}`
-}
-
-function analysisKey(screenshotPath: string, device: string, pageType: string, focusAreas: string[]) {
-  const sorted = [...(focusAreas || [])].sort()
-  return `${screenshotPath}|${device}|${pageType}|${JSON.stringify(sorted)}`
-}
 
 // Tool definitions for OpenAI function calling
 export const UX_AUDIT_TOOLS = [
@@ -122,6 +92,7 @@ const DEVICE_PRESETS = {
 
 // Main tool call handler
 export async function callUXAuditTool(toolName: string, args: any): Promise<any> {
+  console.log(`[UX_AUDIT] Tool: ${toolName}`, args)
   switch (toolName) {
     case 'audit_website_ux':
       return await auditWebsiteUX(args)
@@ -163,66 +134,45 @@ async function auditWebsiteUX(args: {
     // Determine viewport size
     const viewport = args.viewport || DEVICE_PRESETS[device]
 
-    // Try to reuse a recent screenshot for the same URL/device/viewport
+    // Take screenshot with retry logic (no caching - AI manages reuse via session history)
+    console.log(`[UX_AUDIT] Taking ${device} screenshot of ${url}...`)
     let screenshotPath: string | undefined
-    const sKey = screenshotKey(url, device, viewport)
-    const cached = SCREENSHOT_CACHE.get(sKey)
-    const now = Date.now()
+    let retryCount = 0
+    const maxRetries = 2
 
-    if (cached && existsSync(cached.path) && (now - cached.timestamp) < SIX_HOURS) {
-      console.log(`Reusing cached ${device} screenshot for ${url}: ${cached.path}`)
-      screenshotPath = cached.path
-    } else {
-      // Take screenshot with retry logic
-      console.log(`Taking ${device} screenshot of ${url}...`)
-      let retryCount = 0
-      const maxRetries = 2
+    while (retryCount <= maxRetries) {
+      try {
+        screenshotPath = await captureScreenshot(url, viewport, device)
+        break
+      } catch (error: any) {
+        retryCount++
+        console.log(`[PLAYWRIGHT] Screenshot attempt ${retryCount} failed: ${error.message}`)
 
-      while (retryCount <= maxRetries) {
-        try {
-          screenshotPath = await captureScreenshot(url, viewport, device)
-          // Save to cache
-          SCREENSHOT_CACHE.set(sKey, { path: screenshotPath, url, device, viewport, timestamp: now })
-          break
-        } catch (error: any) {
-          retryCount++
-          console.log(`Screenshot attempt ${retryCount} failed: ${error.message}`)
-
-          if (retryCount > maxRetries) {
-            if (error.message.includes('Timeout')) {
-              throw new Error(
-                `The webpage took too long to load (tried ${maxRetries + 1} times). ` +
-                'This might be due to slow loading, heavy JavaScript, or network issues. ' +
-                'Please try again or check if the website is accessible.'
-              )
-            }
-            throw error
+        if (retryCount > maxRetries) {
+          if (error.message.includes('Timeout')) {
+            throw new Error(
+              `The webpage took too long to load (tried ${maxRetries + 1} times). ` +
+              'This might be due to slow loading, heavy JavaScript, or network issues. ' +
+              'Please try again or check if the website is accessible.'
+            )
           }
-
-          await new Promise(resolve => setTimeout(resolve, 2000))
+          throw error
         }
-      }
 
-      if (!screenshotPath) {
-        throw new Error('Failed to capture screenshot after multiple attempts')
+        await new Promise(resolve => setTimeout(resolve, 2000))
       }
     }
 
-    // Analyze with GPT-4V (reuse analysis if same screenshot + params)
-    console.log(`Analyzing UX for ${pageType} page...`)
-    const aKey = analysisKey(screenshotPath, device, pageType, focusAreas)
-    let analysis: any
-    const cachedAnalysis = ANALYSIS_CACHE.get(aKey)
-    if (cachedAnalysis) {
-      console.log(`Reusing cached UX analysis for ${url} (${device}/${pageType})`)
-      analysis = cachedAnalysis
-    } else {
-      analysis = await analyzeScreenshotWithGPTV(screenshotPath, device, pageType, focusAreas, apiKey)
-      ANALYSIS_CACHE.set(aKey, analysis)
+    if (!screenshotPath) {
+      throw new Error('Failed to capture screenshot after multiple attempts')
     }
+
+    // Analyze with GPT-4V (no caching - always fresh analysis)
+    console.log(`[UX_AUDIT] Analyzing UX for ${pageType} page...`)
+    const analysis = await analyzeScreenshotWithGPTV(screenshotPath, device, pageType, focusAreas, apiKey)
 
     // Normalize analysis (handles cases where model returned JSON inside a code block)
-    analysis = normalizeUxAnalysis(analysis)
+    const normalizedAnalysis = normalizeUxAnalysis(analysis)
 
     return {
       success: true,
@@ -231,11 +181,11 @@ async function auditWebsiteUX(args: {
       device,
       viewport,
       screenshotPath,
-      analysis,
-      recommendations: Array.isArray(analysis?.recommendations) ? analysis.recommendations : [],
-      score: analysis?.overallScore ?? analysis?.score ?? null,
+      analysis: normalizedAnalysis,
+      recommendations: Array.isArray(normalizedAnalysis?.recommendations) ? normalizedAnalysis.recommendations : [],
+      score: normalizedAnalysis?.overallScore ?? normalizedAnalysis?.score ?? null,
       focusAreas,
-      message: `UX audit completed for ${pageType} page${cached ? ' (reused screenshot)' : ''}`
+      message: `UX audit completed for ${pageType} page`
     }
 
   } catch (error: any) {
@@ -409,25 +359,25 @@ async function captureScreenshot(
     
     for (const strategy of strategies) {
       try {
-        console.log(`Trying ${strategy.name} strategy...`)
+        console.log(`[PLAYWRIGHT] Trying ${strategy.name} strategy...`)
         await page.goto(url, { waitUntil: strategy.waitUntil, timeout: strategy.timeout })
         loadSuccess = true
-        console.log(`✓ Page loaded successfully with ${strategy.name} strategy`)
+        console.log(`[PLAYWRIGHT] ✓ Page loaded successfully with ${strategy.name} strategy`)
         break
       } catch (error: any) {
-        console.log(`✗ ${strategy.name} strategy failed: ${error.message}`)
+        console.log(`[PLAYWRIGHT] ✗ ${strategy.name} strategy failed: ${error.message}`)
         
         // If this is the last strategy, try one final attempt without waiting
         if (strategy === strategies[strategies.length - 1]) {
-          console.log('Attempting final fallback: basic navigation without waiting...')
+          console.log('[PLAYWRIGHT] Attempting final fallback: basic navigation without waiting...')
           try {
             await page.goto(url, { timeout: 60000 })
             // Give it a few seconds to render whatever it can
             await page.waitForTimeout(5000)
             loadSuccess = true
-            console.log('✓ Fallback navigation succeeded')
+            console.log('[PLAYWRIGHT] ✓ Fallback navigation succeeded')
           } catch (fallbackError: any) {
-            console.log(`✗ Final fallback failed: ${fallbackError.message}`)
+            console.log(`[PLAYWRIGHT] ✗ Final fallback failed: ${fallbackError.message}`)
             throw new Error(
               `Failed to load the page after trying multiple strategies. ` +
               `The website may be experiencing issues or may be very slow to load. ` +
@@ -449,10 +399,10 @@ async function captureScreenshot(
       // Try to get basic page info for context
       const title = await page.title().catch(() => 'Unknown')
       const url = page.url()
-      console.log(`✓ Successfully loaded: "${title}" at ${url}`)
+      console.log(`[PLAYWRIGHT] ✓ Successfully loaded: "${title}" at ${url}`)
     } catch {
       // Continue even if timeout fails
-      console.log('Page loaded with basic rendering - proceeding with screenshot')
+      console.log('[PLAYWRIGHT] Page loaded with basic rendering - proceeding with screenshot')
     }
     
     // Create screenshots directory if it doesn't exist
@@ -500,7 +450,7 @@ async function analyzeImageWithGPTV(
   const cleanBase64 = base64Image.replace(/^data:image\/\w+;base64,/, '')
 
   // PASS 1: GPT-4V Vision Analysis
-  console.log('🔍 Pass 1: Running GPT-4V vision analysis...')
+  console.log('[UX_AUDIT] 🔍 Pass 1: Running GPT-4V vision analysis...')
   const visionResponse = await openai.chat.completions.create({
     model: 'gpt-4o',
     max_tokens: 1500,
@@ -564,12 +514,8 @@ async function analyzeImageWithGPTV(
     }
   }
 
-  // Store raw vision output for debugging/comparison
-  const cacheKey = `${device}|${pageType}|${JSON.stringify(focusAreas)}`
-  RAW_VISION_CACHE.set(cacheKey, rawAnalysis)
-
   // PASS 2: GPT-4.1-mini Refinement & Validation
-  console.log('✨ Pass 2: Refining analysis with GPT-4.1-mini...')
+  console.log('[UX_AUDIT] ✨ Pass 2: Refining analysis with GPT-4.1-mini...')
   try {
     const refinementResponse = await openai.chat.completions.create({
       model: 'gpt-4.1-mini',
@@ -600,16 +546,16 @@ async function analyzeImageWithGPTV(
 
     const refinedContent = refinementResponse.choices[0]?.message?.content
     if (!refinedContent) {
-      console.warn('⚠️  No refinement received, returning raw vision analysis')
+      console.warn('[UX_AUDIT] ⚠️  No refinement received, returning raw vision analysis')
       return normalizeUxAnalysis(rawAnalysis)
     }
-
+    
     const refinedAnalysis = JSON.parse(refinedContent)
-    console.log('✅ Dual-pass analysis complete')
+    console.log('[UX_AUDIT] ✅ Dual-pass analysis complete')
     return normalizeUxAnalysis(refinedAnalysis)
 
   } catch (error: any) {
-    console.warn('⚠️  Refinement pass failed, falling back to raw vision analysis:', error.message)
+    console.warn('[UX_AUDIT] ⚠️  Refinement pass failed, falling back to raw vision analysis:', error.message)
     return normalizeUxAnalysis(rawAnalysis)
   }
 }
