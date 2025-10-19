@@ -4,12 +4,14 @@ An AI-powered UX audit and conversion optimization assistant built with Nuxt 3. 
 
 ## What is ThriveLens?
 
-ThriveLens combines OpenAI's vision and reasoning capabilities with automated screenshot capture to deliver expert-level UX audits through a conversational interface. Simply provide a URL, and get detailed analysis on:
+ThriveLens combines OpenAI's vision and reasoning capabilities with automated screenshot capture to deliver expert-level UX audits through a conversational interface. Simply provide a URL, and get detailed analysis scored across six key categories:
 
-- **Conversion Optimization**: CTA placement, form design, trust signals
-- **User Experience**: Navigation, layout, visual hierarchy
-- **Mobile Responsiveness**: Cross-device experience analysis
-- **Accessibility**: WCAG compliance and usability issues
+- **Visual Design**: Layout consistency, spacing, contrast, visual hierarchy, readability
+- **Content & Messaging**: Headline clarity, value proposition, CTA language, trust signals
+- **Conversion Readiness**: CTA prominence, form usability, pricing clarity, urgency elements
+- **Mobile Optimization**: Responsive design, tap targets, mobile-friendly layouts
+- **Trust & Credibility**: Social proof, payment security, policy visibility, testimonials
+- **Accessibility**: WCAG compliance, keyboard navigation, screen reader support (lower priority for checkout pages)
 
 
 ## Quick Start
@@ -91,6 +93,55 @@ AI: [Compares UX audits and identifies friction points causing refunds]
 
 **Image Analysis:**
 - Upload a screenshot and ask `analyze this checkout page`
+## ThriveCart Workflow Examples
+
+ThriveLens combines ThriveCart business data with automated UX analysis to help you understand **why** products perform differently.
+
+### Example 1: Identify Refund Issues
+
+```
+1. "What are my top 2 most refunded products?"
+   → AI fetches refund transactions, identifies Product A (50 refunds) and Product B (15 refunds)
+
+2. "Audit these 2 sites for UX analysis"
+   → AI captures screenshots and analyzes both checkout pages
+
+3. "Why is Product A refunded more than Product B?"
+   → AI compares UX audits and identifies:
+     • Product A has confusing pricing display (high priority issue)
+     • Product A lacks clear refund policy (trust issue)
+     • Product B has stronger trust signals
+     • Product A's mobile checkout has usability issues
+```
+
+### Example 2: Optimize Best Sellers
+
+```
+1. "Show me my top 3 products by sales"
+   → AI analyzes charge transactions
+
+2. "Audit the checkout pages for all 3"
+   → AI performs UX analysis on each product
+
+3. "Which one has the best mobile experience?"
+   → AI compares mobile scores and recommends improvements
+
+4. "Export PDF reports for each product"
+   → AI generates individual professional reports
+```
+
+### Example 3: Reduce Cancellations
+
+```
+1. "Which products have the most subscription cancellations?"
+   → AI filters by transactionType="cancel"
+
+2. "Audit the checkout page for the most cancelled product"
+   → AI analyzes UX issues that may cause cancellations
+
+3. "What are the top 3 improvements to reduce cancellations?"
+   → AI provides prioritized recommendations based on UX analysis
+```
 
 ## Features
 
