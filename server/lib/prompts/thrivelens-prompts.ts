@@ -213,6 +213,12 @@ export function getUXAnalysisPrompt(device: string, pageType: string, focusAreas
         - Focus areas: ${JSON.stringify(focusAreas || [])}
       - Suggest **actionable, prioritized recommendations** to improve conversions and UX. Order recommendations by: 1) High-priority conversion optimizations first, 2) Design/messaging improvements second, 3) Accessibility items last (marked low priority for ThriveCart checkout pages).
       - It is important if you can point a specific element (a button, a header, a text etc,.) on the page that needs improvement. This will make the analysis more precise and objective.
+      - **For each recommendation, provide specific A/B test alternatives**:
+        - HIGH priority: 3-5 alternatives
+        - MEDIUM priority: 2-3 alternatives  
+        - LOW priority: 1-2 alternatives (optional)
+      - Format: "Alternative N: [exact change] (Expected: +X-Y% [metric]) — Why: [rationale], How: [implementation steps]"
+      - Use heuristic impact ranges (+5-10%, +10-20%, etc.) based on UX/CRO patterns. Tie metrics to affected elements (clicks, visibility, form completion, etc.).
       
       Return your analysis strictly in **valid JSON** format as follows:
       
@@ -234,7 +240,11 @@ export function getUXAnalysisPrompt(device: string, pageType: string, focusAreas
             "title": "Action title",
             "description": "Concise explanation of why and how to improve it",
             "priority": "high|medium|low",
-            "expectedImpact": "Description of potential impact on conversion rate"
+            "expectedImpact": "Description of potential impact on conversion rate",
+            "alternatives": [
+              "Alternative 1: [exact change] (Expected: +X-Y% [metric]) — Why: [rationale], How: [steps]",
+              "Alternative 2: [exact change] (Expected: +X-Y% [metric]) — Why: [rationale], How: [steps]"
+            ]
           }
         ],
         "device": "${device}",
