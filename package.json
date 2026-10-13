@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "@iconify/vue": "^5.0.0",
-    "@modelcontextprotocol/sdk": "^1.20.0",
+    "@modelcontextprotocol/sdk": "^1.31.0",
     "@types/node": "^24.7.2",
     "jspdf": "^3.0.3",
     "nuxt": "^4.1.3",
